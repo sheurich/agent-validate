@@ -154,7 +154,12 @@ if ! should_skip "python"; then
         py_files+=("$f")
     done < <(find . -name "*.py" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -print0)
     if [[ ${#py_files[@]} -gt 0 ]]; then
-        printf '%s\0' "${py_files[@]}" | xargs -0 uvx "ruff@${RUFF_VERSION}" check || errors=$((errors + 1))
+        # Use system ruff if available, otherwise uvx
+        ruff_cmd=(uvx "ruff@${RUFF_VERSION}")
+        if command -v ruff >/dev/null 2>&1; then
+            ruff_cmd=(ruff)
+        fi
+        printf '%s\0' "${py_files[@]}" | xargs -0 "${ruff_cmd[@]}" check || errors=$((errors + 1))
     else
         echo "No Python files found, skipping"
     fi
