@@ -1,0 +1,12 @@
+{
+  "name": "component-paths",
+  "description": "Plugin with component path fields",
+  "version": "1.0.0",
+  "commands": ["./commands/cmd.md"],
+  "agents": "./agents/",
+  "skills": "./skills/",
+  "hooks": "./hooks.json",
+  "mcpServers": "./mcp.json",
+  "outputStyles": "./styles/",
+  "lspServers": "./.lsp.json"
+}

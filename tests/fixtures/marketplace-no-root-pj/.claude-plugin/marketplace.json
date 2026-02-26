@@ -6,5 +6,8 @@
       "version": "1.0.0",
       "description": "Only plugin"
     }
-  ]
+  ],
+  "owner": {
+    "name": "test-owner"
+  }
 }

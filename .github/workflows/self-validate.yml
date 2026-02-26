@@ -43,6 +43,7 @@ jobs:
           npx --yes markdownlint-cli@0.47.0 '**/*.md'
           --ignore node_modules
           --ignore 'tests/fixtures/**'
+          --ignore 'skills/spec-conformance/references/**'
           --config defaults/.markdownlint.json
 
       - name: Run test suite

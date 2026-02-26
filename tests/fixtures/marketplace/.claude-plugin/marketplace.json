@@ -12,5 +12,8 @@
       "version": "2.0.0",
       "description": "Beta plugin"
     }
-  ]
+  ],
+  "owner": {
+    "name": "test-owner"
+  }
 }

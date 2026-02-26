@@ -6,5 +6,8 @@
       "version": "1.0.0",
       "description": "Bad plugin"
     }
-  ]
+  ],
+  "owner": {
+    "name": "test-owner"
+  }
 }

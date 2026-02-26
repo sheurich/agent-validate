@@ -186,6 +186,30 @@ assert_pass "promoted-skill: name mismatch in skills/ grandparent is warning not
 assert_pass "mdlint-config-override: repo-local markdownlint config overrides bundled default" \
     "$FIXTURES/mdlint-config-override" --skip "json,yaml,shell,python,claude,gemini,pi,codex,opencode,crosscheck,skills"
 
+# --- Drift fix 1: Component path fields in plugin.json ---
+
+assert_pass "plugin-component-paths: component path fields in plugin.json are accepted" \
+    "$FIXTURES/plugin-component-paths" --skip "$SKIP_EXTERNAL"
+
+# --- Drift fix 2: contextFileName array handling ---
+
+assert_pass "gemini-ctx-array: contextFileName as array with valid files passes" \
+    "$FIXTURES/gemini-ctx-array" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "gemini-ctx-array-broken: contextFileName array detects missing file" \
+    "references.*missing.md.*but file not found" \
+    "$FIXTURES/gemini-ctx-array-broken" --skip "$SKIP_EXTERNAL"
+
+# --- Drift fix 3: Marketplace top-level validation ---
+
+assert_fail_stderr "marketplace-no-owner: detects missing owner.name" \
+    "missing required owner.name" \
+    "$FIXTURES/marketplace-no-owner" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "marketplace-bad-source: detects unresolvable source path" \
+    "source path does not resolve" \
+    "$FIXTURES/marketplace-bad-source" --skip "$SKIP_EXTERNAL"
+
 echo ""
 echo "=== Results: $passed passed, $failed failed ==="
 
