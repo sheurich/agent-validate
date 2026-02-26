@@ -37,6 +37,21 @@ assert_fail() {
     fi
 }
 
+assert_fail_stderr() {
+    local name="$1" expected_pattern="$2" dir="$3"
+    shift 3
+    local stderr_output
+    stderr_output=$("$VALIDATE" "$@" "$dir" 2>&1 >/dev/null) || true
+    if echo "$stderr_output" | grep -qE "$expected_pattern"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (stderr missing pattern: $expected_pattern)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    fi
+}
+
 # Skip checks that require npm/claude/gemini CLI tools in CI-less environments.
 # The structural checks (crosscheck, skills, allowlist) are the ones we test.
 SKIP_EXTERNAL="json,yaml,markdown,shell,python,claude,gemini,pi,codex,opencode"
@@ -67,6 +82,23 @@ assert_fail "broken: crosscheck detects mismatches" \
 # --- Skip flag ---
 assert_pass "broken: passes when all checks skipped" \
     "$FIXTURES/broken" --skip "$SKIP_EXTERNAL,crosscheck,skills"
+
+# --- Fixture: broken — stderr content ---
+assert_fail_stderr "broken: stderr reports name mismatch" \
+    "Name mismatch.*plugin.json.*gemini-extension.json" \
+    "$FIXTURES/broken" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "broken: stderr reports version mismatch" \
+    "Version mismatch" \
+    "$FIXTURES/broken" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "broken: stderr reports SKILL.md name mismatch" \
+    "SKILL.md name mismatch.*wrong-name.*bad-skill" \
+    "$FIXTURES/broken" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "broken: stderr reports missing description" \
+    "No frontmatter.*description" \
+    "$FIXTURES/broken" --skip "$SKIP_EXTERNAL"
 
 echo ""
 echo "=== Results: $passed passed, $failed failed ==="
