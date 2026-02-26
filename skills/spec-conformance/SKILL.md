@@ -56,7 +56,7 @@ Per-plugin optional: `description`, `version`, `author`, `homepage`, `repository
 
 Source types: relative paths, GitHub repos (`github:owner/repo`), git URLs, npm packages. Only relative paths are validated for resolution.
 
-**What validate.sh checks:** Validates `owner.name` is present. Validates `plugins` is an array. Checks relative `source` paths resolve to directories. Cross-checks per-plugin `name`, `version`, `description` against sub-plugin manifests. Runs `claude plugin validate` on each non-strict-false sub-plugin.
+**What validate.sh checks:** Validates `name`, `owner.name`, and `plugins` array are present. Checks relative `source` paths resolve to directories. Cross-checks per-plugin `name`, `version`, `description` against sub-plugin manifests. Runs `claude plugin validate` on each non-strict-false sub-plugin.
 
 ### Gemini CLI gemini-extension.json
 
@@ -71,7 +71,7 @@ Documentation also mentions: `description`, `settings` array, `themes` array.
 
 `contextFileName` can be a string or array of strings. If omitted and `GEMINI.md` exists, that file is loaded. When an array, each entry is resolved independently.
 
-**What validate.sh checks:** Cross-checks `name`, `version`, `description` against plugin.json/package.json. Validates `contextFileName` file(s) exist — handles both string and array forms. Does not validate `name` format (lowercase, dashes).
+**What validate.sh checks:** Cross-checks `name`, `version`, `description` against plugin.json/package.json. Validates `contextFileName` file(s) exist — handles both string and array forms. Validates `name` format (lowercase alphanumeric with dashes).
 
 ### Pi package.json
 
@@ -85,7 +85,7 @@ Without a `pi` manifest, pi auto-discovers from conventional directories (`exten
 
 Pi packages should include `"keywords": ["pi-package"]` for discovery.
 
-**What validate.sh checks:** Extracts all string values from `.pi` via `jq -r '.pi | .. | strings'`, filters for path-like values, verifies each resolves. Also checks for TypeScript syntax in `extensions/*.ts`. Does not validate `keywords` contains `pi-package`.
+**What validate.sh checks:** Extracts all string values from `.pi` via `jq -r '.pi | .. | strings'`, filters for path-like values, verifies each resolves. Warns if `keywords` does not include `"pi-package"`. Also checks for TypeScript syntax in `extensions/*.ts`.
 
 ### SKILL.md Frontmatter
 
@@ -107,21 +107,15 @@ Skills must be at `skills/<name>/SKILL.md` — nested skills are not discovered.
 
 ## Known Drift
 
-Tracked issues where validate.sh diverges from upstream specs:
-
-1. **Pi keywords not checked** — Does not validate that `"keywords": ["pi-package"]` is present for Pi package discovery.
-
-2. **Gemini name format not validated** — Does not check that extension `name` is lowercase with dashes matching the directory name.
-
-3. **marketplace.json name field not required** — validate.sh checks for `owner.name` and `plugins` array, but does not require the top-level `name` field (which the spec lists as required).
+No known drift. All upstream spec requirements are covered.
 
 ## Previously Fixed Drift
 
-These items were identified and fixed:
-
 - **plugin.json allowlist expanded** (2026-02-26): Added component path fields (`commands`, `agents`, `skills`, `hooks`, `mcpServers`, `outputStyles`, `lspServers`).
 - **contextFileName array handling** (2026-02-26): Both root and marketplace sub-plugin checks now handle `string | string[]`.
-- **marketplace.json top-level validation** (2026-02-26): Added `owner.name` required check, `plugins` array check, and relative `source` path resolution.
+- **marketplace.json top-level validation** (2026-02-26): Added `name`, `owner.name`, `plugins` array, and relative `source` path resolution checks.
+- **Gemini name format validation** (2026-02-26): Checks `name` is lowercase alphanumeric with dashes.
+- **Pi keyword check** (2026-02-26): Warns if `keywords` does not include `"pi-package"`.
 
 ## Updating Specs
 

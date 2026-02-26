@@ -1,0 +1,7 @@
+{
+  "name": "test-pi-no-keyword",
+  "version": "1.0.0",
+  "pi": {
+    "skills": "./skills"
+  }
+}

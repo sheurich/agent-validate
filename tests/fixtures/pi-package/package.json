@@ -4,5 +4,8 @@
   "description": "A test Pi package",
   "pi": {
     "skills": "./skills"
-  }
+  },
+  "keywords": [
+    "pi-package"
+  ]
 }

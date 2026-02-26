@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "name": "test-owner"
+  },
+  "plugins": [
+    {
+      "name": "x",
+      "source": "plugins/x"
+    }
+  ]
+}

@@ -52,6 +52,25 @@ assert_fail_stderr() {
     fi
 }
 
+assert_pass_stderr() {
+    local name="$1" expected_pattern="$2" dir="$3"
+    shift 3
+    local stderr_output
+    if ! stderr_output=$("$VALIDATE" "$@" "$dir" 2>&1 >/dev/null); then
+        echo "FAIL: $name (expected pass, got failure)" >&2
+        failed=$((failed + 1))
+        return
+    fi
+    if echo "$stderr_output" | grep -qE "$expected_pattern"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (stderr missing pattern: $expected_pattern)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    fi
+}
+
 # Skip checks that require npm/claude/gemini CLI tools in CI-less environments.
 # The structural checks (crosscheck, skills, allowlist) are the ones we test.
 SKIP_EXTERNAL="json,yaml,markdown,shell,python,claude,gemini,pi,codex,opencode"
@@ -209,6 +228,22 @@ assert_fail_stderr "marketplace-no-owner: detects missing owner.name" \
 assert_fail_stderr "marketplace-bad-source: detects unresolvable source path" \
     "source path does not resolve" \
     "$FIXTURES/marketplace-bad-source" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "marketplace-no-name: detects missing marketplace name" \
+    "missing required name field" \
+    "$FIXTURES/marketplace-no-name" --skip "$SKIP_EXTERNAL"
+
+# --- Drift fix: Gemini name format ---
+
+assert_fail_stderr "gemini-bad-name: detects non-lowercase extension name" \
+    "must be lowercase alphanumeric with dashes" \
+    "$FIXTURES/gemini-bad-name" --skip "$SKIP_EXTERNAL"
+
+# --- Drift fix: Pi keyword warning ---
+
+assert_pass_stderr "pi-no-keyword: warns about missing pi-package keyword" \
+    "missing.*pi-package.*keyword" \
+    "$FIXTURES/pi-no-keyword" --skip "json,yaml,markdown,shell,python,claude,gemini,codex,opencode,crosscheck"
 
 echo ""
 echo "=== Results: $passed passed, $failed failed ==="

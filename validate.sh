@@ -242,6 +242,14 @@ if ! should_skip "pi"; then
             done < <(jq -r '.pi | .. | strings' "package.json" 2>/dev/null | grep -E '^\./|^[a-zA-Z]' || true)
         fi
 
+        # Check for pi-package keyword (discovery convention)
+        if [[ -f "package.json" ]]; then
+            has_pi_keyword=$(jq -r '.keywords // [] | map(select(. == "pi-package")) | length' "package.json")
+            if [[ "$has_pi_keyword" == "0" ]]; then
+                echo "Warning: package.json missing \"pi-package\" keyword (recommended for Pi package discovery)" >&2
+            fi
+        fi
+
         # TypeScript syntax check for extensions
         ts_files=()
         while IFS= read -r -d '' f; do
@@ -322,6 +330,12 @@ if ! should_skip "crosscheck"; then
         ge_name=$(jq -r '.name // empty' "$gemini_json")
         ge_version=$(jq -r '.version // empty' "$gemini_json")
         ge_description=$(jq -r '.description // empty' "$gemini_json")
+
+        # Gemini extension name format: lowercase alphanumeric with dashes
+        if [[ -n "$ge_name" ]] && ! echo "$ge_name" | grep -qE '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
+            echo "Error: gemini-extension.json name '$ge_name' must be lowercase alphanumeric with dashes" >&2
+            errors=$((errors + 1))
+        fi
     fi
 
     if [[ -f "$pkg_json" ]] && jq -e '.pi' "$pkg_json" >/dev/null 2>&1; then
@@ -406,6 +420,12 @@ if ! should_skip "crosscheck"; then
     # Marketplace top-level validation
     if [[ -f "$marketplace" ]]; then
         echo "=== Validating marketplace.json structure ==="
+        # Required: name
+        mp_top_name=$(jq -r '.name // empty' "$marketplace")
+        if [[ -z "$mp_top_name" ]]; then
+            echo "Error: marketplace.json missing required name field" >&2
+            errors=$((errors + 1))
+        fi
         # Required: owner.name
         mp_owner_name=$(jq -r '.owner.name // empty' "$marketplace")
         if [[ -z "$mp_owner_name" ]]; then

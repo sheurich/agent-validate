@@ -5,5 +5,8 @@
   "pi": {
     "skills": "./skills",
     "themes": "./themes"
-  }
+  },
+  "keywords": [
+    "pi-package"
+  ]
 }

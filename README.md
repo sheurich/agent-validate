@@ -1,137 +1,73 @@
 # agent-validate
 
-Cross-agent plugin/extension/skill validation for Claude Code, Gemini CLI, Pi, Codex, and OpenCode.
-
-Runs as a local script or a GitHub composite action. Zero configuration by default — auto-detects which platforms are present and runs applicable checks.
-
-## Quick start
-
-### GitHub Actions
-
-```yaml
-- uses: sheurich/agent-validate@v1
-```
-
-### Local
-
-```bash
-# Clone at a pinned ref
-gh repo clone sheurich/agent-validate -- --branch v1 /path/to/agent-validate
-
-# Run
-/path/to/agent-validate/validate.sh
-```
-
-Or add as a git submodule:
-
-```bash
-git submodule add -b v1 https://github.com/sheurich/agent-validate.git tools/agent-validate
-./tools/agent-validate/validate.sh
-```
+Cross-agent plugin/extension/skill validation. Works with Claude Code, Gemini CLI, Pi, Codex, and OpenCode.
 
 ## What it checks
 
-### Tier 1: Generic linting
+**Tier 1 — Generic linting** (runs on any repo):
 
-| Check | Tool | Files |
-|-------|------|-------|
-| JSON | jsonlint-mod | `*.json` |
-| YAML | yamllint | `*.yml`, `*.yaml` |
-| Markdown | markdownlint-cli | `*.md` |
-| Shell | shellcheck | `*.sh` |
-| Python | ruff | `*.py` |
+- JSON (`jsonlint-mod`)
+- YAML (`yamllint`)
+- Markdown (`markdownlint-cli`)
+- Shell (`shellcheck`)
+- Python (`ruff`)
 
-### Tier 2: Platform-specific
+**Tier 2 — Platform-specific** (auto-detected by file presence):
 
-| Platform | Detection | Checks |
-|----------|-----------|--------|
-| Claude Code | `.claude-plugin/` | `claude plugin validate`, field allowlist, marketplace enumeration |
-| Gemini CLI | `gemini-extension.json` | `gemini extensions validate`, contextFileName resolution |
-| Pi | `package.json` with `pi` key or `extensions/`/`skills/`/`prompts/`/`themes/` dirs | path resolution, TypeScript syntax |
-| Codex | `AGENTS.md` or `codex.md` | markdown lint |
-| OpenCode | `AGENTS.md` | markdown lint |
+- `.claude-plugin/` → `claude plugin validate`, plugin.json field allowlist, marketplace.json structure
+- `gemini-extension.json` → `gemini extensions validate`, name format, contextFileName resolution
+- `package.json` with `.pi` key → path resolution, keyword check, TypeScript syntax
+- `AGENTS.md` / `codex.md` → Codex/OpenCode detection
 
-### Cross-platform
+**Cross-platform** — metadata consistency across manifests (name, version, description), SKILL.md frontmatter validation, duplicate skill detection.
 
-- Name, version, and description consistency across `plugin.json`, `gemini-extension.json`, and `package.json`
-- Marketplace metadata cross-checking when `.claude-plugin/marketplace.json` exists
+## Usage
 
-### SKILL.md frontmatter
+### Script
 
-- Required `name` and `description` fields
-- `name` must match containing folder
-- Duplicate skill name detection
-- Promoted SKILL.md files (in category directories) get warnings instead of errors
-
-## Configuration
-
-### Skipping checks
-
-Use `--skip` or `VALIDATE_SKIP` (comma-separated):
-
-```bash
-./validate.sh --skip claude,gemini
-VALIDATE_SKIP=python,shell ./validate.sh
+```sh
+./validate.sh [--skip CHECKS] [TARGET_DIR]
 ```
 
-Available checks: `json`, `yaml`, `markdown`, `shell`, `python`, `claude`, `gemini`, `pi`, `codex`, `opencode`, `crosscheck`, `skills`
+Skip individual checks with a comma-separated list:
 
-### Tool versions
+```sh
+./validate.sh --skip json,yaml,claude /path/to/plugin
+```
 
-Override pinned versions via environment variables:
+Available skip values: `json`, `yaml`, `markdown`, `shell`, `python`, `claude`, `gemini`, `pi`, `codex`, `opencode`, `crosscheck`, `skills`.
 
-| Variable | Default |
-|----------|---------|
-| `JSONLINT_VERSION` | 1.7.6 |
-| `YAMLLINT_VERSION` | 1.37.0 |
-| `MARKDOWNLINT_VERSION` | 0.47.0 |
-| `RUFF_VERSION` | 0.14.14 |
-| `CLAUDE_CODE_VERSION` | 2.1.22 |
-| `GEMINI_CLI_VERSION` | 0.26.0 |
+The `VALIDATE_SKIP` environment variable works the same way and merges with `--skip`.
 
-### Linter configs
-
-Place repo-local configs to override bundled defaults:
-
-- `.yamllint.yml` / `.yamllint.yaml` / `.yamllint`
-- `.markdownlint.json` / `.markdownlint.jsonc` / `.markdownlint.yml`
-
-### Extra validation
-
-Add `scripts/validate-extra.sh` to your repo. It runs after all built-in checks.
-
-### Composite action inputs
+### GitHub Action
 
 ```yaml
 - uses: sheurich/agent-validate@v1
   with:
-    path: "."                        # Directory to validate
-    skip: ""                         # Comma-separated checks to skip
-    jsonlint-version: "1.7.6"
-    yamllint-version: "1.37.0"
-    markdownlint-version: "0.47.0"
-    ruff-version: "0.14.14"
-    claude-code-version: "2.1.22"
-    gemini-cli-version: "0.26.0"
+    path: "."        # default: repo root
+    skip: ""         # default: none
 ```
 
-## Output format
+All tool versions are pinnable via inputs (`jsonlint-version`, `yamllint-version`, `markdownlint-version`, `ruff-version`, `claude-code-version`, `gemini-cli-version`).
 
-- `=== Validating X ===` section headers
-- `Error:` messages to stderr
-- Warnings don't fail the build
-- Exit 0 (all checks pass) or exit 1 (any check fails)
-- No color codes (CI-safe)
+### Extra validation hook
 
-## Security
+If `scripts/validate-extra.sh` exists in the target directory, it runs after all built-in checks. A nonzero exit code fails the overall validation.
 
-- `set -euo pipefail`, no `eval`
-- `-print0` / `xargs -0` for safe filename handling
-- Pinned tool versions as auditable variables at top of script
-- SHA-pinned action references in workflows
-- `permissions: contents: read` in composite action
-- Local invocation via git submodule or `gh repo clone` at pinned ref — no curl-pipe-bash
+## Configuration
 
-## License
+Linter configs are auto-discovered from the target repo. If none exist, bundled defaults from `defaults/` are used:
 
-MIT
+- `.yamllint.yml` / `.yamllint.yaml` / `.yamllint`
+- `.markdownlint.json` / `.markdownlint.jsonc` / `.markdownlint.yml` / `.markdownlint.yaml`
+
+## Design
+
+- **Zero-config**: runs with no setup against any agent plugin/extension/skill repo
+- **Auto-detect**: platforms detected by file presence, not flags
+- **Auditable**: all tool versions pinned and overridable; GitHub Actions use full SHA pins
+- **System-first**: prefers system-installed `yamllint` and `ruff` before falling back to `uvx`
+
+## Spec conformance
+
+Vendored platform specs live in `skills/spec-conformance/`. The SKILL.md there documents what validate.sh checks against each upstream spec, tracks drift, and tells agents how to verify changes. See that file when modifying validation logic.
