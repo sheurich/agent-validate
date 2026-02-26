@@ -245,6 +245,86 @@ assert_pass_stderr "pi-no-keyword: warns about missing pi-package keyword" \
     "missing.*pi-package.*keyword" \
     "$FIXTURES/pi-no-keyword" --skip "json,yaml,markdown,shell,python,claude,gemini,codex,opencode,crosscheck"
 
+# --- P0 #1: --help flag ---
+
+test_help_flag() {
+    local name="--help exits 0"
+    if "$VALIDATE" --help >/dev/null 2>&1; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (expected exit 0)" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_help_flag
+
+# --- P0 #4: --skip double-pass concatenation ---
+
+assert_pass "--skip double-pass: two --skip flags concatenate" \
+    "$FIXTURES/broken" \
+    --skip "$SKIP_EXTERNAL,crosscheck" --skip "skills"
+
+# --- P0 #6: SKILL.md Agent Skills spec alignment ---
+
+assert_fail_stderr "skill-name-too-long: rejects name >64 chars" \
+    "exceeds 64-char limit" \
+    "$FIXTURES/skill-name-too-long" --skip "$SKIP_EXTERNAL,crosscheck,skill-name-match"
+
+assert_fail_stderr "skill-name-uppercase: rejects uppercase in name" \
+    "invalid characters.*lowercase" \
+    "$FIXTURES/skill-name-uppercase" --skip "$SKIP_EXTERNAL,crosscheck,skill-name-match"
+
+assert_fail_stderr "skill-name-leading-hyphen: rejects leading hyphen" \
+    "must not start or end with a hyphen" \
+    "$FIXTURES/skill-name-leading-hyphen" --skip "$SKIP_EXTERNAL,crosscheck,skill-name-match"
+
+assert_fail_stderr "skill-name-consecutive-hyphens: rejects consecutive hyphens" \
+    "must not contain consecutive hyphens" \
+    "$FIXTURES/skill-name-consecutive-hyphens" --skip "$SKIP_EXTERNAL,crosscheck,skill-name-match"
+
+assert_fail_stderr "skill-name-invalid-chars: rejects underscores" \
+    "invalid characters.*lowercase" \
+    "$FIXTURES/skill-name-invalid-chars" --skip "$SKIP_EXTERNAL,crosscheck,skill-name-match"
+
+assert_fail_stderr "skill-description-empty: rejects empty description value" \
+    "No frontmatter.*description.*or empty" \
+    "$FIXTURES/skill-description-empty" --skip "$SKIP_EXTERNAL,crosscheck"
+
+assert_fail_stderr "skill-description-too-long: rejects description >1024 chars" \
+    "Description exceeds 1024-char limit" \
+    "$FIXTURES/skill-description-too-long" --skip "$SKIP_EXTERNAL,crosscheck,skill-name-match"
+
+assert_fail_stderr "skill-compat-too-long: rejects compatibility >500 chars" \
+    "Compatibility exceeds 500-char limit" \
+    "$FIXTURES/skill-compat-too-long" --skip "$SKIP_EXTERNAL,crosscheck,skill-name-match"
+
+assert_fail_stderr "skill-unknown-field: rejects unknown frontmatter field" \
+    "Unexpected frontmatter field.*bogus" \
+    "$FIXTURES/skill-unknown-field" --skip "$SKIP_EXTERNAL,crosscheck"
+
+assert_pass_stderr "skill-user-invocable: accepts user-invocable with portability warning" \
+    "user-invocable.*not part of the Agent Skills specification" \
+    "$FIXTURES/skill-user-invocable" --skip "$SKIP_EXTERNAL,crosscheck"
+
+assert_pass "skill-name-match-skip: name≠folder passes with skill-name-match skipped" \
+    "$FIXTURES/skill-name-match-skip" --skip "$SKIP_EXTERNAL,crosscheck,skill-name-match"
+
+assert_fail "skill-name-match-skip: name≠folder fails without skip" \
+    "$FIXTURES/skill-name-match-skip" --skip "$SKIP_EXTERNAL,crosscheck"
+
+assert_pass "skill-discovery-paths: discovers skills in .agents/ .claude/ .opencode/" \
+    "$FIXTURES/skill-discovery-paths" --skip "$SKIP_EXTERNAL,crosscheck"
+
+assert_pass "skill-all-fields: all allowed frontmatter fields pass" \
+    "$FIXTURES/skill-all-fields" --skip "$SKIP_EXTERNAL,crosscheck"
+
+# --- P0 #3: Malformed JSON in crosscheck ---
+
+assert_fail_stderr "crosscheck-malformed-json: reports invalid JSON instead of crashing" \
+    "is not valid JSON" \
+    "$FIXTURES/crosscheck-malformed-json" --skip "$SKIP_EXTERNAL"
+
 echo ""
 echo "=== Results: $passed passed, $failed failed ==="
 

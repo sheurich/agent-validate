@@ -624,31 +624,64 @@ if ! should_skip "crosscheck"; then
     fi
 fi
 
-# --- SKILL.md frontmatter ---
+# --- SKILL.md validation (Agent Skills specification) ---
 
 if ! should_skip "skills"; then
-    # Find all skills directories (top-level skills/, or plugins/*/skills/)
+    # Discover skill directories from all known paths
     skill_dirs=()
-    [[ -d "skills" ]] && skill_dirs+=("skills")
+    for sd in skills .agents/skills .claude/skills .opencode/skills; do
+        [[ -d "$sd" ]] && skill_dirs+=("$sd")
+    done
     while IFS= read -r -d '' d; do
         skill_dirs+=("$d")
     done < <(find . -path "*/plugins/*/skills" -type d -print0 2>/dev/null)
 
+    # Allowed frontmatter fields (Agent Skills spec + user-invocable extension)
+    allowed_fm_fields="name description license allowed-tools metadata compatibility"
+
     if [[ ${#skill_dirs[@]} -gt 0 ]]; then
-        echo "=== Checking SKILL.md frontmatter ==="
+        echo "=== Checking SKILL.md (Agent Skills specification) ==="
         while IFS= read -r -d '' skill_file; do
             skill_dir=$(dirname "$skill_file")
             folder_name=$(basename "$skill_dir")
 
-            # Extract frontmatter name
-            fm_name=$(awk '/^---$/{if(++c==2)exit} c==1 && /^name:/{sub(/^name:[[:space:]]*/, ""); print}' "$skill_file")
+            # Extract all frontmatter lines between --- delimiters
+            frontmatter=$(awk '/^---$/{if(++c==2)exit; next} c==1{print}' "$skill_file")
+
+            # --- name: required ---
+            fm_name=$(echo "$frontmatter" | awk '/^name:/{sub(/^name:[[:space:]]*/, ""); print; exit}')
             if [[ -z "$fm_name" ]]; then
                 echo "Error: No frontmatter 'name' in $skill_file" >&2
                 errors=$((errors + 1))
                 continue
             fi
 
-            if [[ "$fm_name" != "$folder_name" ]]; then
+            # Name format: max 64 chars
+            if [[ ${#fm_name} -gt 64 ]]; then
+                echo "Error: Skill name '$fm_name' exceeds 64-char limit (${#fm_name} chars) in $skill_file" >&2
+                errors=$((errors + 1))
+            fi
+
+            # Name format: lowercase alnum + hyphens only
+            if ! echo "$fm_name" | grep -qE '^[a-z0-9-]+$'; then
+                echo "Error: Skill name '$fm_name' contains invalid characters (must be lowercase alphanumeric + hyphens) in $skill_file" >&2
+                errors=$((errors + 1))
+            fi
+
+            # Name format: no leading/trailing hyphens
+            if [[ "$fm_name" == -* || "$fm_name" == *- ]]; then
+                echo "Error: Skill name '$fm_name' must not start or end with a hyphen in $skill_file" >&2
+                errors=$((errors + 1))
+            fi
+
+            # Name format: no consecutive hyphens
+            if [[ "$fm_name" == *--* ]]; then
+                echo "Error: Skill name '$fm_name' must not contain consecutive hyphens in $skill_file" >&2
+                errors=$((errors + 1))
+            fi
+
+            # Name must match folder (configurable via skip)
+            if ! should_skip "skill-name-match" && [[ "$fm_name" != "$folder_name" ]]; then
                 # Promoted SKILL.md (sitting in a category dir) gets warning, not error
                 grandparent=$(basename "$(dirname "$skill_dir")")
                 if [[ "$grandparent" == "skills" || "$grandparent" == "tools" || "$grandparent" == "howto" ]]; then
@@ -659,12 +692,37 @@ if ! should_skip "skills"; then
                 fi
             fi
 
-            # Required description field
-            fm_desc=$(awk '/^---$/{if(++c==2)exit} c==1 && /^description:/{found=1} END{if(found) print "yes"}' "$skill_file")
+            # --- description: required, non-empty, max 1024 chars ---
+            fm_desc=$(echo "$frontmatter" | awk '/^description:/{sub(/^description:[[:space:]]*/, ""); print; exit}')
             if [[ -z "$fm_desc" ]]; then
-                echo "Error: No frontmatter 'description' in $skill_file" >&2
+                echo "Error: No frontmatter 'description' (or empty value) in $skill_file" >&2
+                errors=$((errors + 1))
+            elif [[ ${#fm_desc} -gt 1024 ]]; then
+                echo "Error: Description exceeds 1024-char limit (${#fm_desc} chars) in $skill_file" >&2
                 errors=$((errors + 1))
             fi
+
+            # --- compatibility: max 500 chars if present ---
+            fm_compat=$(echo "$frontmatter" | awk '/^compatibility:/{sub(/^compatibility:[[:space:]]*/, ""); print; exit}')
+            if [[ -n "$fm_compat" && ${#fm_compat} -gt 500 ]]; then
+                echo "Error: Compatibility exceeds 500-char limit (${#fm_compat} chars) in $skill_file" >&2
+                errors=$((errors + 1))
+            fi
+
+            # --- Frontmatter field allowlist ---
+            while IFS= read -r field_name; do
+                [[ -z "$field_name" ]] && continue
+                # Check against spec allowlist
+                if ! echo " $allowed_fm_fields " | grep -q " $field_name "; then
+                    if [[ "$field_name" == "user-invocable" ]]; then
+                        echo "Warning: '$field_name' is not part of the Agent Skills specification; may not be portable across agents ($skill_file)" >&2
+                    else
+                        echo "Error: Unexpected frontmatter field '$field_name' in $skill_file (allowed: $allowed_fm_fields)" >&2
+                        errors=$((errors + 1))
+                    fi
+                fi
+            done < <(echo "$frontmatter" | grep -E '^[a-zA-Z]' | sed 's/:.*//')
+
         done < <(find "${skill_dirs[@]}" -name "SKILL.md" -print0)
 
         echo "=== Checking for duplicate skill names ==="
