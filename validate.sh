@@ -24,6 +24,8 @@ Cross-agent plugin/extension/skill validation.
 
 Options:
   --skip CHECKS   Comma-separated checks to skip (repeatable)
+  --verbose       Show detailed output
+  --quiet         Show only errors and summary
   -h, --help      Show this help message
 
 Skip values:
@@ -60,12 +62,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # --- Parse arguments ---
 SKIP_CHECKS=""
 TARGET_DIR=""
+VERBOSE=false
+QUIET=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help)
             usage
             exit 0
+            ;;
+        --verbose)
+            VERBOSE=true
+            shift
+            ;;
+        --quiet)
+            QUIET=true
+            shift
             ;;
         --skip)
             if [[ -n "$SKIP_CHECKS" ]]; then
@@ -124,10 +136,36 @@ if [[ -n "$TARGET_DIR" ]]; then
     cd "$TARGET_DIR"
 fi
 
+# --- Output helpers ---
+# info: section headers and progress (suppressed by --quiet)
+# detail: verbose-only output
+info() {
+    $QUIET || echo "$@"
+}
+
+detail() {
+    $VERBOSE && echo "$@" || true
+}
+
 # --- Skip check helper ---
 should_skip() {
     local check="$1"
     [[ -n "$SKIP_CHECKS" ]] && echo ",$SKIP_CHECKS," | grep -q ",$check,"
+}
+
+# --- npx wrapper with network error handling ---
+run_npx() {
+    local output exit_code=0
+    output=$(npx "$@" 2>&1) || exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        echo "$output"
+        if echo "$output" | grep -qiE 'ENOTFOUND|ETIMEDOUT|ECONNREFUSED|network|fetch failed'; then
+            echo "Hint: npx failed — check your network connection or try again" >&2
+        fi
+        return $exit_code
+    fi
+    [[ -n "$output" ]] && echo "$output"
+    return 0
 }
 
 # --- Linter config resolution ---
@@ -154,7 +192,7 @@ errors=0
 # --- Tier 1: Generic linting ---
 
 if ! should_skip "json"; then
-    echo "=== Validating JSON ==="
+    info "=== Validating JSON ==="
     json_files=()
     while IFS= read -r -d '' f; do
         json_files+=("$f")
@@ -162,12 +200,12 @@ if ! should_skip "json"; then
     if [[ ${#json_files[@]} -gt 0 ]]; then
         printf '%s\0' "${json_files[@]}" | xargs -0 -n1 npx --yes "jsonlint-mod@${JSONLINT_VERSION}" -q || errors=$((errors + 1))
     else
-        echo "No JSON files found, skipping"
+        info "No JSON files found, skipping"
     fi
 fi
 
 if ! should_skip "yaml"; then
-    echo "=== Validating YAML ==="
+    info "=== Validating YAML ==="
     yaml_files=()
     while IFS= read -r -d '' f; do
         yaml_files+=("$f")
@@ -177,17 +215,17 @@ if ! should_skip "yaml"; then
         yamllint_cmd=(uvx "yamllint@${YAMLLINT_VERSION}")
         if command -v yamllint >/dev/null 2>&1; then
             yamllint_cmd=(yamllint)
-            echo "Using system yamllint ($(yamllint --version 2>&1 | head -1))"
+            detail "Using system yamllint ($(yamllint --version 2>&1 | head -1))"
         fi
         # shellcheck disable=SC2046
         printf '%s\0' "${yaml_files[@]}" | xargs -0 "${yamllint_cmd[@]}" $(yamllint_config) || errors=$((errors + 1))
     else
-        echo "No YAML files found, skipping"
+        info "No YAML files found, skipping"
     fi
 fi
 
 if ! should_skip "markdown"; then
-    echo "=== Validating Markdown ==="
+    info "=== Validating Markdown ==="
     # shellcheck disable=SC2046
     npx --yes "markdownlint-cli@${MARKDOWNLINT_VERSION}" '**/*.md' \
         --ignore node_modules --ignore '**/vendor/**' \
@@ -195,7 +233,7 @@ if ! should_skip "markdown"; then
 fi
 
 if ! should_skip "shell"; then
-    echo "=== Validating Shell ==="
+    info "=== Validating Shell ==="
     shell_files=()
     while IFS= read -r -d '' f; do
         shell_files+=("$f")
@@ -203,12 +241,12 @@ if ! should_skip "shell"; then
     if [[ ${#shell_files[@]} -gt 0 ]]; then
         printf '%s\0' "${shell_files[@]}" | xargs -0 shellcheck || errors=$((errors + 1))
     else
-        echo "No shell files found, skipping"
+        info "No shell files found, skipping"
     fi
 fi
 
 if ! should_skip "python"; then
-    echo "=== Validating Python ==="
+    info "=== Validating Python ==="
     py_files=()
     while IFS= read -r -d '' f; do
         py_files+=("$f")
@@ -218,11 +256,11 @@ if ! should_skip "python"; then
         ruff_cmd=(uvx "ruff@${RUFF_VERSION}")
         if command -v ruff >/dev/null 2>&1; then
             ruff_cmd=(ruff)
-            echo "Using system ruff ($(ruff --version 2>&1 | head -1))"
+            detail "Using system ruff ($(ruff --version 2>&1 | head -1))"
         fi
         printf '%s\0' "${py_files[@]}" | xargs -0 "${ruff_cmd[@]}" check || errors=$((errors + 1))
     else
-        echo "No Python files found, skipping"
+        info "No Python files found, skipping"
     fi
 fi
 
@@ -231,8 +269,8 @@ fi
 # Claude Code
 if ! should_skip "claude"; then
     if [[ -d ".claude-plugin" ]]; then
-        echo "=== Validating Claude Code plugin ==="
-        npx --yes "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" plugin validate . || errors=$((errors + 1))
+        info "=== Validating Claude Code plugin ==="
+        run_npx --yes "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" plugin validate . || errors=$((errors + 1))
 
         # Marketplace enumeration
         if [[ -f ".claude-plugin/marketplace.json" ]]; then
@@ -249,19 +287,19 @@ if ! should_skip "claude"; then
                 mp_strict=$(jq -r "if .plugins[$i].strict == false then \"false\" else \"true\" end" "$local_mp")
 
                 if [[ "$mp_strict" == "false" ]]; then
-                    echo "Skipping $mp_name (strict: false)"
+                    info "Skipping $mp_name (strict: false)"
                     continue
                 fi
 
-                echo "Validating plugin: $mp_name"
-                npx --yes "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" plugin validate "$mp_source" || errors=$((errors + 1))
+                info "Validating plugin: $mp_name"
+                run_npx --yes "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" plugin validate "$mp_source" || errors=$((errors + 1))
 
                 # Per-plugin Gemini extension
                 if ! should_skip "gemini"; then
                     sub_gemini="$mp_source/gemini-extension.json"
                     if [[ -f "$sub_gemini" ]]; then
                         echo "Validating Gemini extension in: $mp_source"
-                        npx --yes "@google/gemini-cli@${GEMINI_CLI_VERSION}" extensions validate "$mp_source" || errors=$((errors + 1))
+                        run_npx --yes "@google/gemini-cli@${GEMINI_CLI_VERSION}" extensions validate "$mp_source" || errors=$((errors + 1))
                     fi
                 fi
             done
@@ -272,8 +310,8 @@ fi
 # Gemini CLI
 if ! should_skip "gemini"; then
     if [[ -f "gemini-extension.json" ]]; then
-        echo "=== Validating Gemini extension ==="
-        npx --yes "@google/gemini-cli@${GEMINI_CLI_VERSION}" extensions validate . || errors=$((errors + 1))
+        info "=== Validating Gemini extension ==="
+        run_npx --yes "@google/gemini-cli@${GEMINI_CLI_VERSION}" extensions validate . || errors=$((errors + 1))
     fi
 fi
 
@@ -288,7 +326,7 @@ if ! should_skip "pi"; then
     done
 
     if $pi_detected; then
-        echo "=== Validating Pi package ==="
+        info "=== Validating Pi package ==="
 
         # Verify package.json pi paths resolve
         if [[ -f "package.json" ]] && jq -e '.pi' "package.json" >/dev/null 2>&1; then
@@ -316,7 +354,7 @@ if ! should_skip "pi"; then
         done < <(find . -path "./extensions/*.ts" -not -path "./node_modules/*" -print0 2>/dev/null)
         if [[ ${#ts_files[@]} -gt 0 ]]; then
             if command -v npx >/dev/null 2>&1; then
-                echo "Checking TypeScript syntax in extensions/"
+                info "Checking TypeScript syntax in extensions/"
                 for ts in "${ts_files[@]}"; do
                     npx --yes typescript@latest tsc --noEmit --allowJs --checkJs false "$ts" 2>/dev/null || {
                         echo "Error: TypeScript syntax error in $ts" >&2
@@ -331,10 +369,10 @@ fi
 # Codex
 if ! should_skip "codex"; then
     if [[ -f "AGENTS.md" || -f "codex.md" ]]; then
-        echo "=== Validating Codex agent files ==="
+        info "=== Validating Codex agent files ==="
         for f in AGENTS.md codex.md; do
             if [[ -f "$f" ]]; then
-                echo "Found: $f"
+                info "Found: $f"
             fi
         done
     fi
@@ -343,15 +381,15 @@ fi
 # OpenCode
 if ! should_skip "opencode"; then
     if [[ -f "AGENTS.md" ]]; then
-        echo "=== Validating OpenCode agent files ==="
-        echo "Found: AGENTS.md"
+        info "=== Validating OpenCode agent files ==="
+        info "Found: AGENTS.md"
     fi
 fi
 
 # --- Cross-platform consistency ---
 
 if ! should_skip "crosscheck"; then
-    echo "=== Cross-checking metadata consistency ==="
+    info "=== Cross-checking metadata consistency ==="
 
     # Manifest paths used throughout this block
     marketplace=".claude-plugin/marketplace.json"
@@ -457,7 +495,7 @@ if ! should_skip "crosscheck"; then
 
     # Gemini contextFileName file resolution (handles string or string[])
     if [[ -f "$gemini_json" ]]; then
-        echo "=== Checking Gemini extension context files ==="
+        info "=== Checking Gemini extension context files ==="
         ctx_type=$(jq -r '.contextFileName | type' "$gemini_json")
         if [[ "$ctx_type" == "string" ]]; then
             context_file=$(jq -r '.contextFileName' "$gemini_json")
@@ -468,7 +506,7 @@ if ! should_skip "crosscheck"; then
                 fi
             else
                 if [[ ! -f "GEMINI.md" ]]; then
-                    echo "Note: No contextFileName and no GEMINI.md (Gemini gets no root context)"
+                    info "Note: No contextFileName and no GEMINI.md (Gemini gets no root context)"
                 fi
             fi
         elif [[ "$ctx_type" == "array" ]]; then
@@ -481,14 +519,14 @@ if ! should_skip "crosscheck"; then
             done < <(jq -r '.contextFileName[]' "$gemini_json")
         else
             if [[ ! -f "GEMINI.md" ]]; then
-                echo "Note: No contextFileName and no GEMINI.md (Gemini gets no root context)"
+                info "Note: No contextFileName and no GEMINI.md (Gemini gets no root context)"
             fi
         fi
     fi
 
     # Marketplace top-level validation
     if [[ -f "$marketplace" ]]; then
-        echo "=== Validating marketplace.json structure ==="
+        info "=== Validating marketplace.json structure ==="
         # Required: name
         mp_top_name=$(jq -r '.name // empty' "$marketplace")
         if [[ -z "$mp_top_name" ]]; then
@@ -513,7 +551,10 @@ if ! should_skip "crosscheck"; then
             mp_src_name=$(jq -r ".plugins[$i].name" "$marketplace")
             # Only check relative paths (not URLs, not github: refs)
             if [[ -n "$mp_src" && "$mp_src" != "null" && ! "$mp_src" =~ ^(https?://|github:|git@|npm:) ]]; then
-                if [[ ! -d "$mp_src" ]]; then
+                if [[ "$mp_src" == *..* ]]; then
+                    echo "Error: marketplace.json plugin '$mp_src_name' source path contains '..': $mp_src" >&2
+                    errors=$((errors + 1))
+                elif [[ ! -d "$mp_src" ]]; then
                     echo "Error: marketplace.json plugin '$mp_src_name' source path does not resolve: $mp_src" >&2
                     errors=$((errors + 1))
                 fi
@@ -523,7 +564,7 @@ if ! should_skip "crosscheck"; then
 
     # Marketplace cross-checks
     if [[ -f "$marketplace" ]]; then
-        echo "=== Cross-checking marketplace metadata ==="
+        info "=== Cross-checking marketplace metadata ==="
         mp_count=$(jq -e -r '.plugins | length' "$marketplace" 2>/dev/null) || mp_count=0
         for ((i = 0; i < mp_count; i++)); do
             mp_name=$(jq -r ".plugins[$i].name" "$marketplace")
@@ -588,7 +629,7 @@ if ! should_skip "crosscheck"; then
 
     # Marketplace sub-plugin contextFileName resolution (handles string or string[])
     if [[ -f "$marketplace" ]]; then
-        echo "=== Checking Gemini extension context files (marketplace) ==="
+        info "=== Checking Gemini extension context files (marketplace) ==="
         mp_ctx_count=$(jq -e -r '.plugins | length' "$marketplace" 2>/dev/null) || mp_ctx_count=0
         for ((i = 0; i < mp_ctx_count; i++)); do
             mp_source=$(jq -r ".plugins[$i].source" "$marketplace")
@@ -609,7 +650,7 @@ if ! should_skip "crosscheck"; then
                     fi
                 else
                     if [[ ! -f "$mp_source/GEMINI.md" ]]; then
-                        echo "Note: $mp_name has no contextFileName and no GEMINI.md (Gemini gets no root context)"
+                        info "Note: $mp_name has no contextFileName and no GEMINI.md (Gemini gets no root context)"
                     fi
                 fi
             elif [[ "$ctx_type" == "array" ]]; then
@@ -622,7 +663,7 @@ if ! should_skip "crosscheck"; then
                 done < <(jq -r '.contextFileName[]' "$sub_gemini")
             else
                 if [[ ! -f "$mp_source/GEMINI.md" ]]; then
-                    echo "Note: $mp_name has no contextFileName and no GEMINI.md (Gemini gets no root context)"
+                    info "Note: $mp_name has no contextFileName and no GEMINI.md (Gemini gets no root context)"
                 fi
             fi
         done
@@ -645,7 +686,7 @@ if ! should_skip "skills"; then
     allowed_fm_fields="name description license allowed-tools metadata compatibility"
 
     if [[ ${#skill_dirs[@]} -gt 0 ]]; then
-        echo "=== Checking SKILL.md (Agent Skills specification) ==="
+        info "=== Checking SKILL.md (Agent Skills specification) ==="
         while IFS= read -r -d '' skill_file; do
             skill_dir=$(dirname "$skill_file")
             folder_name=$(basename "$skill_dir")
@@ -730,7 +771,7 @@ if ! should_skip "skills"; then
 
         done < <(find "${skill_dirs[@]}" -name "SKILL.md" -print0)
 
-        echo "=== Checking for duplicate skill names ==="
+        info "=== Checking for duplicate skill names ==="
         dupes=$(find "${skill_dirs[@]}" -name "SKILL.md" -print0 | xargs -0 -I{} \
             awk '/^---$/{if(++c==2)exit} c==1 && /^name:/{sub(/^name:[[:space:]]*/, ""); print}' {} \
             | sort | uniq -d)
@@ -744,7 +785,7 @@ fi
 
 # --- Extra validation hook ---
 if [[ -f "scripts/validate-extra.sh" ]]; then
-    echo "=== Running extra validation ==="
+    info "=== Running extra validation ==="
     bash scripts/validate-extra.sh || errors=$((errors + 1))
 fi
 
@@ -755,4 +796,4 @@ if [[ $errors -gt 0 ]]; then
     exit 1
 fi
 
-echo "=== All validations passed ==="
+info "=== All validations passed ==="

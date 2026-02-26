@@ -335,6 +335,49 @@ assert_fail_stderr "crosscheck-malformed-json: reports invalid JSON instead of c
 
 # --- P1 #8: broken-shell and broken-python (see tier 1 section above) ---
 
+# --- P2 #18: Reject .. in marketplace source paths ---
+
+assert_fail_stderr "marketplace-dotdot-source: rejects .. in source path" \
+    "contains '\\.\\.'" \
+    "$FIXTURES/marketplace-dotdot-source" --skip "$SKIP_EXTERNAL"
+
+# --- P2 #21: Codex/OpenCode detection output ---
+
+test_codex_detection() {
+    local name="codex-detection: detects AGENTS.md for Codex"
+    local stdout
+    stdout=$("$VALIDATE" --skip "json,yaml,markdown,shell,python,claude,gemini,pi,opencode,crosscheck,skills" "$FIXTURES/codex-detection" 2>&1)
+    if echo "$stdout" | grep -q "Validating Codex"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (stdout missing 'Validating Codex')" >&2
+        echo "  Got: $stdout" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_codex_detection
+
+test_opencode_detection() {
+    local name="opencode-detection: detects AGENTS.md for OpenCode"
+    local stdout
+    stdout=$("$VALIDATE" --skip "json,yaml,markdown,shell,python,claude,gemini,pi,codex,crosscheck,skills" "$FIXTURES/opencode-detection" 2>&1)
+    if echo "$stdout" | grep -q "Validating OpenCode"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (stdout missing 'Validating OpenCode')" >&2
+        echo "  Got: $stdout" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_opencode_detection
+
+# --- P2 #22: Pi auto-detection (directory presence) ---
+
+assert_pass "pi-auto-detect: detects Pi by skills/ directory presence" \
+    "$FIXTURES/pi-auto-detect" --skip "json,yaml,markdown,shell,python,claude,gemini,codex,opencode,crosscheck"
+
 # --- P1 #9: CLI edge cases ---
 
 test_unknown_flag() {

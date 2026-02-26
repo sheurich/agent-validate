@@ -1,0 +1,7 @@
+{
+  "name": "test-marketplace",
+  "owner": { "name": "test" },
+  "plugins": [
+    { "name": "escape-plugin", "source": "../../../etc" }
+  ]
+}
