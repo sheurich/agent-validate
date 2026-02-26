@@ -24,6 +24,34 @@ When updating validate.sh for a new upstream spec version:
 
 ## Platform Specs
 
+### Agent Skills Specification (SKILL.md)
+
+**Source:** `https://agentskills.io/docs/specification` / `https://raw.githubusercontent.com/agentskills/agentskills/main/docs/specification.mdx`
+**Reference validator:** `https://github.com/agentskills/agentskills/tree/main/skills-ref`
+**Vendored:** `references/agentskills-specification.mdx`
+**Last verified:** 2026-02-26
+
+This is the canonical source of truth for SKILL.md validation. The Agent Skills open standard defines:
+
+Required frontmatter: `name`, `description`.
+
+Optional frontmatter: `license`, `compatibility`, `metadata`, `allowed-tools`.
+
+**Field allowlist:** Only `name`, `description`, `license`, `allowed-tools`, `metadata`, `compatibility` are permitted. The reference validator (`skills-ref validate`) rejects any other fields.
+
+**Name constraints:** 1–64 chars, lowercase alphanumeric + hyphens, no leading/trailing hyphens, no consecutive hyphens, must match parent directory name.
+
+**Description constraints:** Non-empty string, max 1024 chars.
+
+**Compatibility constraints:** Max 500 chars if present.
+
+**What validate.sh checks:** All of the above, plus:
+- `user-invocable` accepted with a portability warning (used by Claude Code for slash menu visibility; not in the spec)
+- Name-folder mismatch configurable: error by default, skippable via `--skip skill-name-match`
+- Promoted skills (grandparent is `skills`, `tools`, or `howto`) get warnings instead of errors for name mismatch
+- Scans: `skills/`, `.agents/skills/`, `.claude/skills/`, `.opencode/skills/`, `plugins/*/skills/`
+- Duplicate name detection across all discovered skills
+
 ### Claude Code plugin.json
 
 **Source:** `https://code.claude.com/docs/en/plugins-reference.md`
@@ -36,7 +64,7 @@ Metadata fields (all optional): `version`, `description`, `author`, `homepage`, 
 
 Component path fields (all optional): `commands`, `agents`, `skills`, `hooks`, `mcpServers`, `outputStyles`, `lspServers`. Each accepts `string|array` (some also accept `object` for inline config).
 
-**What validate.sh checks:** Field allowlist covering all metadata and component path fields. Rejects any key not in the allowlist. Also runs `claude plugin validate` for structural checks (tier 2).
+**What validate.sh checks:** Field allowlist covering all metadata and component path fields. Rejects any key not in the allowlist. Also runs `claude plugin validate` for structural checks (tier 2). Handles malformed JSON gracefully (error, not crash).
 
 ### Claude Code marketplace.json
 
@@ -71,7 +99,7 @@ Documentation also mentions: `description`, `settings` array, `themes` array.
 
 `contextFileName` can be a string or array of strings. If omitted and `GEMINI.md` exists, that file is loaded. When an array, each entry is resolved independently.
 
-**What validate.sh checks:** Cross-checks `name`, `version`, `description` against plugin.json/package.json. Validates `contextFileName` file(s) exist — handles both string and array forms. Validates `name` format (lowercase alphanumeric with dashes).
+**What validate.sh checks:** Cross-checks `name`, `version`, `description` against plugin.json/package.json. Validates `contextFileName` file(s) exist — handles both string and array forms. Validates `name` format (lowercase alphanumeric with dashes). Handles malformed JSON gracefully.
 
 ### Pi package.json
 
@@ -85,25 +113,7 @@ Without a `pi` manifest, pi auto-discovers from conventional directories (`exten
 
 Pi packages should include `"keywords": ["pi-package"]` for discovery.
 
-**What validate.sh checks:** Extracts all string values from `.pi` via `jq -r '.pi | .. | strings'`, filters for path-like values, verifies each resolves. Warns if `keywords` does not include `"pi-package"`. Also checks for TypeScript syntax in `extensions/*.ts`.
-
-### SKILL.md Frontmatter
-
-**Source:** Agent Skills Format specification (obra/agent-skills-format)
-**Vendored:** `references/agent-skills-format.md`
-**Last verified:** 2026-02-26
-
-Required frontmatter fields: `name`, `description`.
-
-Optional: `user-invocable` (boolean), `compatibility` (object).
-
-The `name` should match the containing folder name. Exception: "promoted" skills where the grandparent directory is `skills`, `tools`, or `howto` may have a different name (warning, not error).
-
-The `description` should include both WHAT the skill does and WHEN to use it.
-
-Skills must be at `skills/<name>/SKILL.md` — nested skills are not discovered.
-
-**What validate.sh checks:** Requires `name` and `description` in YAML frontmatter. Checks `name` matches folder name (warning for promoted skills). Checks for duplicate names across all skill directories. Does not validate `description` content quality.
+**What validate.sh checks:** Extracts top-level `.pi` entry values via `jq`, verifies each resolves as a path. Warns if `keywords` does not include `"pi-package"`. Also checks for TypeScript syntax in `extensions/*.ts`.
 
 ## Known Drift
 
@@ -111,6 +121,9 @@ No known drift. All upstream spec requirements are covered.
 
 ## Previously Fixed Drift
 
+- **Agent Skills spec alignment** (2026-02-26): Full implementation of agentskills.io specification — name format, description non-empty/length, compatibility length, frontmatter field allowlist, discovery paths, `user-invocable` portability warning.
+- **Pi path filter tightened** (2026-02-26): Extracts `.pi` entry values instead of recursive string grepping to avoid false positives.
+- **Malformed JSON handling** (2026-02-26): Crosscheck gracefully handles invalid JSON in plugin.json and gemini-extension.json.
 - **plugin.json allowlist expanded** (2026-02-26): Added component path fields (`commands`, `agents`, `skills`, `hooks`, `mcpServers`, `outputStyles`, `lspServers`).
 - **contextFileName array handling** (2026-02-26): Both root and marketplace sub-plugin checks now handle `string | string[]`.
 - **marketplace.json top-level validation** (2026-02-26): Added `name`, `owner.name`, `plugins` array, and relative `source` path resolution checks.
