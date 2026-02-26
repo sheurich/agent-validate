@@ -267,6 +267,19 @@ test_help_flag() {
 }
 test_help_flag
 
+test_version_flag() {
+    local name="--version exits 0 with version string"
+    local output
+    if output=$("$VALIDATE" --version 2>&1) && echo "$output" | grep -q "^agent-validate "; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_version_flag
+
 # --- P0 #4: --skip double-pass concatenation ---
 
 assert_pass "--skip double-pass: two --skip flags concatenate" \

@@ -2,7 +2,7 @@
 # validate.sh — Cross-agent plugin/extension/skill validation
 #
 # Usage:
-#   ./validate.sh [--skip CHECKS] [--verbose] [--quiet] [-h|--help] [TARGET_DIR]
+#   ./validate.sh [--skip CHECKS] [--verbose] [--quiet] [--version] [-h|--help] [TARGET_DIR]
 #
 # Environment variables:
 #   VALIDATE_SKIP          Comma-separated checks to skip
@@ -15,6 +15,8 @@
 
 set -euo pipefail
 
+VALIDATE_VERSION="1.0.0"
+
 # --- Usage ---
 usage() {
     cat <<'EOF'
@@ -26,6 +28,7 @@ Options:
   --skip CHECKS   Comma-separated checks to skip (repeatable)
   --verbose       Show detailed output
   --quiet         Show only errors and summary
+  --version       Show version number
   -h, --help      Show this help message
 
 Skip values:
@@ -69,6 +72,10 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help)
             usage
+            exit 0
+            ;;
+        --version)
+            echo "agent-validate $VALIDATE_VERSION"
             exit 0
             ;;
         --verbose)
@@ -790,6 +797,16 @@ if [[ -f "scripts/validate-extra.sh" ]]; then
 fi
 
 # --- Summary ---
+
+# Write structured outputs for GitHub Actions
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    if [[ $errors -gt 0 ]]; then
+        echo "result=fail" >> "$GITHUB_OUTPUT"
+    else
+        echo "result=pass" >> "$GITHUB_OUTPUT"
+    fi
+    echo "error-count=$errors" >> "$GITHUB_OUTPUT"
+fi
 
 if [[ $errors -gt 0 ]]; then
     echo "Error: Validation failed ($errors error(s); see above)" >&2

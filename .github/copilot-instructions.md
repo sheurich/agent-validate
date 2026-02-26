@@ -4,7 +4,7 @@ When reviewing changes to `validate.sh`, `action.yml`, or test fixtures in this 
 
 ## Architecture
 
-- **Zero-config**: consumers run `./validate.sh [--skip CHECKS] [--verbose] [--quiet] [-h|--help] [dir]` or use the GitHub Action with no setup
+- **Zero-config**: consumers run `./validate.sh [--skip CHECKS] [--verbose] [--quiet] [--version] [-h|--help] [dir]` or use the GitHub Action with no setup
 - **Auto-detect**: platforms are detected by file presence (`.claude-plugin/`, `gemini-extension.json`, `package.json` with `.pi`, `AGENTS.md`)
 - **Tiered**: tier 1 (generic linting) runs unconditionally; tier 2 (platform CLI tools) runs only when platform files exist
 - **SHA-pinned**: all GitHub Actions in CI use full commit SHAs, not tags

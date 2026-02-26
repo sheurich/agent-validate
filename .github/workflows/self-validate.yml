@@ -62,3 +62,21 @@ jobs:
         with:
           path: tests/fixtures/standalone-plugin
           skip: claude,gemini,pi
+
+  action-test-fail:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Run action against broken fixture
+        id: validate
+        uses: ./
+        continue-on-error: true
+        with:
+          path: tests/fixtures/broken
+          skip: claude,gemini,pi
+
+      - name: Verify failure outputs
+        run: |
+          [[ "${{ steps.validate.outputs.result }}" == "fail" ]] || { echo "Expected result=fail"; exit 1; }
+          [[ "${{ steps.validate.outputs.error-count }}" != "0" ]] || { echo "Expected error-count > 0"; exit 1; }

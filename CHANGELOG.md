@@ -23,14 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - ruff installed via pip in action.yml (no uvx dependency)
 - `result` and `error-count` action outputs
 - `CONTRIBUTING.md`
+- `--version` flag
 - broken-shell and broken-python test fixtures
 - Tests for unknown flags, `--skip=value` form, multiple positional args, dependency checks
 - Reject `..` in marketplace source paths
+- Action outputs (`result`, `error-count`) written directly via `GITHUB_OUTPUT` in validate.sh
+- Failing-fixture CI job verifies action outputs on validation failure
 
 ### Fixed
 
 - `find -P` used on all find invocations to avoid symlink loops
 - `--skip a --skip b` now concatenates instead of overwriting first value
+- Action output parsing no longer relies on scraping stderr (moved to validate.sh)
 - Malformed JSON in crosscheck increments errors instead of crashing
 - Pi path regex no longer matches non-path strings (e.g. metadata values)
 - Multiple positional directory arguments rejected with error

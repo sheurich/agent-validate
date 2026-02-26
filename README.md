@@ -26,7 +26,7 @@ Cross-agent plugin/extension/skill validation. Works with Claude Code, Gemini CL
 ### Script
 
 ```sh
-./validate.sh [--skip CHECKS] [--verbose] [--quiet] [-h|--help] [TARGET_DIR]
+./validate.sh [--skip CHECKS] [--verbose] [--quiet] [--version] [-h|--help] [TARGET_DIR]
 ```
 
 Skip individual checks with a comma-separated list:
@@ -45,7 +45,7 @@ Available skip values: `json`, `yaml`, `markdown`, `shell`, `python`, `claude`, 
 
 The `VALIDATE_SKIP` environment variable works the same way and merges with `--skip`.
 
-`--verbose` shows additional detail like system tool versions. `--quiet` suppresses section headers and informational output (only errors and summary).
+`--verbose` shows additional detail like system tool versions. `--quiet` suppresses section headers and informational output (only errors and summary). `--version` prints the version number and exits.
 
 ### GitHub Action
 
