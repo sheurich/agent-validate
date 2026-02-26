@@ -68,6 +68,18 @@ assert_fail "broken: crosscheck detects mismatches" \
 assert_pass "broken: passes when all checks skipped" \
     "$FIXTURES/broken" --skip "$SKIP_EXTERNAL,crosscheck,skills"
 
+# --- Fixture: broken-json ---
+assert_fail "broken-json: jsonlint catches invalid JSON" \
+    "$FIXTURES/broken-json" --skip "yaml,markdown,shell,python,claude,gemini,pi,codex,opencode,crosscheck,skills"
+
+# --- Fixture: broken-yaml ---
+assert_fail "broken-yaml: yamllint catches invalid YAML" \
+    "$FIXTURES/broken-yaml" --skip "json,markdown,shell,python,claude,gemini,pi,codex,opencode,crosscheck,skills"
+
+# --- Fixture: broken-markdown ---
+assert_fail "broken-markdown: markdownlint catches bad markdown" \
+    "$FIXTURES/broken-markdown" --skip "json,yaml,shell,python,claude,gemini,pi,codex,opencode,crosscheck,skills"
+
 echo ""
 echo "=== Results: $passed passed, $failed failed ==="
 
