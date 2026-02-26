@@ -19,7 +19,7 @@ Cross-agent plugin/extension/skill validation. Works with Claude Code, Gemini CL
 - `package.json` with `.pi` key → path resolution, keyword check, TypeScript syntax
 - `AGENTS.md` / `codex.md` → Codex/OpenCode detection
 
-**Cross-platform** — metadata consistency across manifests (name, version, description), SKILL.md frontmatter validation, duplicate skill detection.
+**Cross-platform** — metadata consistency across manifests (name, version, description), SKILL.md validation per the [Agent Skills specification](https://agentskills.io/docs/specification) (name format, description, frontmatter allowlist, discovery paths), duplicate skill detection.
 
 ## Usage
 
@@ -35,7 +35,13 @@ Skip individual checks with a comma-separated list:
 ./validate.sh --skip json,yaml,claude /path/to/plugin
 ```
 
-Available skip values: `json`, `yaml`, `markdown`, `shell`, `python`, `claude`, `gemini`, `pi`, `codex`, `opencode`, `crosscheck`, `skills`.
+Multiple `--skip` flags are concatenated:
+
+```sh
+./validate.sh --skip json,yaml --skip claude /path/to/plugin
+```
+
+Available skip values: `json`, `yaml`, `markdown`, `shell`, `python`, `claude`, `gemini`, `pi`, `codex`, `opencode`, `crosscheck`, `skills`, `skill-name-match`.
 
 The `VALIDATE_SKIP` environment variable works the same way and merges with `--skip`.
 
