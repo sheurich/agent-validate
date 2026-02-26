@@ -14,7 +14,7 @@ Cross-agent plugin/extension/skill validation. Works with Claude Code, Gemini CL
 
 **Tier 2 — Platform-specific** (auto-detected by file presence):
 
-- `.claude-plugin/` → `claude plugin validate`, plugin.json field allowlist, marketplace.json structure
+- `.claude-plugin/` → `claude plugin validate`, plugin.json field allowlist, marketplace.json structure (rejects `..` in source paths)
 - `gemini-extension.json` → `gemini extensions validate`, name format, contextFileName resolution
 - `package.json` with `.pi` key → path resolution, keyword check, TypeScript syntax
 - `AGENTS.md` / `codex.md` → Codex/OpenCode detection
@@ -26,7 +26,7 @@ Cross-agent plugin/extension/skill validation. Works with Claude Code, Gemini CL
 ### Script
 
 ```sh
-./validate.sh [--skip CHECKS] [TARGET_DIR]
+./validate.sh [--skip CHECKS] [--verbose] [--quiet] [-h|--help] [TARGET_DIR]
 ```
 
 Skip individual checks with a comma-separated list:
@@ -45,6 +45,8 @@ Available skip values: `json`, `yaml`, `markdown`, `shell`, `python`, `claude`, 
 
 The `VALIDATE_SKIP` environment variable works the same way and merges with `--skip`.
 
+`--verbose` shows additional detail like system tool versions. `--quiet` suppresses section headers and informational output (only errors and summary).
+
 ### GitHub Action
 
 ```yaml
@@ -55,6 +57,17 @@ The `VALIDATE_SKIP` environment variable works the same way and merges with `--s
 ```
 
 All tool versions are pinnable via inputs (`jsonlint-version`, `yamllint-version`, `markdownlint-version`, `ruff-version`, `claude-code-version`, `gemini-cli-version`).
+
+The action exposes two outputs: `result` (`pass` or `fail`) and `error-count` (integer). Use them in downstream steps:
+
+```yaml
+- uses: sheurich/agent-validate@v1
+  id: validate
+  with:
+    path: "."
+- run: echo "Errors found: ${{ steps.validate.outputs.error-count }}"
+  if: steps.validate.outputs.result == 'fail'
+```
 
 ### Extra validation hook
 

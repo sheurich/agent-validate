@@ -84,7 +84,7 @@ Per-plugin optional: `description`, `version`, `author`, `homepage`, `repository
 
 Source types: relative paths, GitHub repos (`github:owner/repo`), git URLs, npm packages. Only relative paths are validated for resolution.
 
-**What validate.sh checks:** Validates `name`, `owner.name`, and `plugins` array are present. Checks relative `source` paths resolve to directories. Cross-checks per-plugin `name`, `version`, `description` against sub-plugin manifests. Runs `claude plugin validate` on each non-strict-false sub-plugin.
+**What validate.sh checks:** Validates `name`, `owner.name`, and `plugins` array are present. Rejects `source` paths containing `..`. Checks relative `source` paths resolve to directories. Cross-checks per-plugin `name`, `version`, `description` against sub-plugin manifests. Runs `claude plugin validate` on each non-strict-false sub-plugin.
 
 ### Gemini CLI gemini-extension.json
 

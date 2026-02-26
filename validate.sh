@@ -2,7 +2,7 @@
 # validate.sh — Cross-agent plugin/extension/skill validation
 #
 # Usage:
-#   ./validate.sh [--skip CHECKS] [TARGET_DIR]
+#   ./validate.sh [--skip CHECKS] [--verbose] [--quiet] [-h|--help] [TARGET_DIR]
 #
 # Environment variables:
 #   VALIDATE_SKIP          Comma-separated checks to skip

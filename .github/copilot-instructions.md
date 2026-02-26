@@ -4,12 +4,13 @@ When reviewing changes to `validate.sh`, `action.yml`, or test fixtures in this 
 
 ## Architecture
 
-- **Zero-config**: consumers run `./validate.sh [dir]` or use the GitHub Action with no setup
+- **Zero-config**: consumers run `./validate.sh [--skip CHECKS] [--verbose] [--quiet] [-h|--help] [dir]` or use the GitHub Action with no setup
 - **Auto-detect**: platforms are detected by file presence (`.claude-plugin/`, `gemini-extension.json`, `package.json` with `.pi`, `AGENTS.md`)
 - **Tiered**: tier 1 (generic linting) runs unconditionally; tier 2 (platform CLI tools) runs only when platform files exist
 - **SHA-pinned**: all GitHub Actions in CI use full commit SHAs, not tags
 - **Bundled defaults**: `defaults/.yamllint.yml` and `defaults/.markdownlint.json` are used unless the target repo provides its own config
 - **System-first tool detection**: yamllint and ruff prefer system-installed versions before falling back to `uvx`
+- **Action tool install**: ruff is pip-installed in the action (no uvx dependency in CI)
 
 ## Review Checklist
 
@@ -24,6 +25,7 @@ For changes to `action.yml`:
 
 - Are action pins full 40-character SHAs with a comment showing the version?
 - Do input defaults match the pinned versions in `validate.sh`?
+- Are `result` and `error-count` outputs set correctly on both success and failure paths?
 
 For test changes:
 

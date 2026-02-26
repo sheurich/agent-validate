@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `find -P` used on all find invocations to avoid symlink loops
 - `--skip a --skip b` now concatenates instead of overwriting first value
 - Malformed JSON in crosscheck increments errors instead of crashing
 - Pi path regex no longer matches non-path strings (e.g. metadata values)
