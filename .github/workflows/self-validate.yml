@@ -33,6 +33,7 @@ jobs:
           yamllint -c defaults/.yamllint.yml
           defaults/.yamllint.yml action.yml
           .github/workflows/self-validate.yml
+          .github/dependabot.yml
 
       - name: Lint JSON
         run: npx --yes jsonlint-mod@1.7.6 -q defaults/.markdownlint.json
@@ -41,6 +42,7 @@ jobs:
         run: >-
           npx --yes markdownlint-cli@0.47.0 '**/*.md'
           --ignore node_modules
+          --ignore 'tests/fixtures/**'
           --config defaults/.markdownlint.json
 
       - name: Run test suite
