@@ -1,0 +1,17 @@
+{
+  "plugins": [
+    {
+      "name": "skipped",
+      "source": "plugins/skipped",
+      "version": "1.0.0",
+      "description": "Skipped plugin",
+      "strict": false
+    },
+    {
+      "name": "checked",
+      "source": "plugins/checked",
+      "version": "1.0.0",
+      "description": "Checked plugin"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "plugins": [
+    {
+      "name": "bad",
+      "source": "plugins/bad",
+      "version": "1.0.0",
+      "description": "Bad plugin"
+    }
+  ]
+}

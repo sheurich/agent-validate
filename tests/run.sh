@@ -151,6 +151,34 @@ assert_pass "empty-dir: no files to lint is not an error" \
 VALIDATE_SKIP="crosscheck,skills" assert_pass "VALIDATE_SKIP env var: merges with --skip" \
     "$FIXTURES/broken" --skip "$SKIP_EXTERNAL"
 
+# --- Item 1: Pi path resolution ---
+
+assert_fail_stderr "pi-broken-path: detects nonexistent pi paths" \
+    "pi path does not resolve" \
+    "$FIXTURES/pi-broken-path" --skip "json,yaml,markdown,shell,python,claude,gemini,codex,opencode,crosscheck,skills"
+
+assert_pass "pi-valid-paths: valid pi paths pass" \
+    "$FIXTURES/pi-valid-paths" --skip "json,yaml,markdown,shell,python,claude,gemini,codex,opencode,crosscheck,skills"
+
+# --- Item 2: Marketplace enumeration logic ---
+
+assert_pass "marketplace-strict-false: strict:false plugins are skipped" \
+    "$FIXTURES/marketplace-strict-false" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "marketplace-bad-fields: per-plugin allowlist catches bogus fields" \
+    "unrecognized fields" \
+    "$FIXTURES/marketplace-bad-fields" --skip "$SKIP_EXTERNAL"
+
+# --- Item 3: Promoted SKILL.md warning path ---
+
+assert_pass "promoted-skill: name mismatch in skills/ grandparent is warning not error" \
+    "$FIXTURES/promoted-skill" --skip "$SKIP_EXTERNAL"
+
+# --- Item 4: markdownlint config override ---
+
+assert_pass "mdlint-config-override: repo-local markdownlint config overrides bundled default" \
+    "$FIXTURES/mdlint-config-override" --skip "json,yaml,shell,python,claude,gemini,pi,codex,opencode,crosscheck,skills"
+
 echo ""
 echo "=== Results: $passed passed, $failed failed ==="
 

@@ -114,8 +114,13 @@ if ! should_skip "yaml"; then
         yaml_files+=("$f")
     done < <(find . \( -name "*.yml" -o -name "*.yaml" \) -not -path "./.git/*" -not -path "./node_modules/*" -print0)
     if [[ ${#yaml_files[@]} -gt 0 ]]; then
+        # Use system yamllint if available (e.g. pip install in CI), otherwise uvx
+        yamllint_cmd=(uvx "yamllint@${YAMLLINT_VERSION}")
+        if command -v yamllint >/dev/null 2>&1; then
+            yamllint_cmd=(yamllint)
+        fi
         # shellcheck disable=SC2046
-        printf '%s\0' "${yaml_files[@]}" | xargs -0 uvx "yamllint@${YAMLLINT_VERSION}" $(yamllint_config) || errors=$((errors + 1))
+        printf '%s\0' "${yaml_files[@]}" | xargs -0 "${yamllint_cmd[@]}" $(yamllint_config) || errors=$((errors + 1))
     else
         echo "No YAML files found, skipping"
     fi
@@ -163,20 +168,6 @@ if ! should_skip "claude"; then
         echo "=== Validating Claude Code plugin ==="
         npx --yes "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" plugin validate . || errors=$((errors + 1))
 
-        plugin_json=".claude-plugin/plugin.json"
-        if [[ -f "$plugin_json" ]]; then
-            # Field allowlist
-            echo "=== Checking plugin.json field allowlist ==="
-            allowed_fields='["name","description","version","author","keywords","license","repository","homepage"]'
-            bad_fields=$(jq -r --argjson allowed "$allowed_fields" \
-                '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
-                "$plugin_json")
-            if [[ -n "$bad_fields" ]]; then
-                echo "Error: plugin.json has unrecognized fields: $bad_fields" >&2
-                errors=$((errors + 1))
-            fi
-        fi
-
         # Marketplace enumeration
         marketplace=".claude-plugin/marketplace.json"
         if [[ -f "$marketplace" ]]; then
@@ -198,18 +189,6 @@ if ! should_skip "claude"; then
 
                 echo "Validating plugin: $mp_name"
                 npx --yes "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" plugin validate "$mp_source" || errors=$((errors + 1))
-
-                # Per-plugin field allowlist
-                sub_plugin_json="$mp_source/.claude-plugin/plugin.json"
-                if [[ -f "$sub_plugin_json" ]]; then
-                    sub_bad=$(jq -r --argjson allowed "$allowed_fields" \
-                        '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
-                        "$sub_plugin_json")
-                    if [[ -n "$sub_bad" ]]; then
-                        echo "Error: $mp_name plugin.json has unrecognized fields: $sub_bad" >&2
-                        errors=$((errors + 1))
-                    fi
-                fi
 
                 # Per-plugin Gemini extension
                 if ! should_skip "gemini"; then
@@ -300,6 +279,9 @@ fi
 if ! should_skip "crosscheck"; then
     echo "=== Cross-checking metadata consistency ==="
 
+    # Manifest paths used throughout this block
+    marketplace=".claude-plugin/marketplace.json"
+
     # Gather metadata from each manifest
     pj_name="" pj_version="" pj_description=""
     ge_name="" ge_version="" ge_description=""
@@ -313,6 +295,16 @@ if ! should_skip "crosscheck"; then
         pj_name=$(jq -r '.name // empty' "$plugin_json")
         pj_version=$(jq -r '.version // empty' "$plugin_json")
         pj_description=$(jq -r '.description // empty' "$plugin_json")
+
+        # Field allowlist (structural check, no CLI needed)
+        allowed_fields='["name","description","version","author","keywords","license","repository","homepage"]'
+        bad_fields=$(jq -r --argjson allowed "$allowed_fields" \
+            '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
+            "$plugin_json")
+        if [[ -n "$bad_fields" ]]; then
+            echo "Error: plugin.json has unrecognized fields: $bad_fields" >&2
+            errors=$((errors + 1))
+        fi
     fi
 
     if [[ -f "$gemini_json" ]]; then
@@ -386,7 +378,6 @@ if ! should_skip "crosscheck"; then
     fi
 
     # Marketplace cross-checks
-    marketplace=".claude-plugin/marketplace.json"
     if [[ -f "$marketplace" ]]; then
         echo "=== Cross-checking marketplace metadata ==="
         mp_count=$(jq -e -r '.plugins | length' "$marketplace" 2>/dev/null) || mp_count=0
@@ -417,6 +408,15 @@ if ! should_skip "crosscheck"; then
                 fi
                 if [[ -n "$mp_description" && -n "$sub_pj_description" && "$mp_description" != "$sub_pj_description" ]]; then
                     echo "Error: Description mismatch for $mp_name: marketplace='$mp_description' plugin.json='$sub_pj_description'" >&2
+                    errors=$((errors + 1))
+                fi
+
+                # Per-plugin field allowlist
+                sub_bad=$(jq -r --argjson allowed "$allowed_fields" \
+                    '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
+                    "$sub_pj")
+                if [[ -n "$sub_bad" ]]; then
+                    echo "Error: $mp_name plugin.json has unrecognized fields: $sub_bad" >&2
                     errors=$((errors + 1))
                 fi
             fi
@@ -534,7 +534,7 @@ fi
 # --- Summary ---
 
 if [[ $errors -gt 0 ]]; then
-    echo "Error: $errors validation failure(s) found" >&2
+    echo "Error: Validation failed ($errors check(s) reported errors; see above)" >&2
     exit 1
 fi
 

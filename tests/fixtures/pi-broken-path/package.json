@@ -1,0 +1,9 @@
+{
+  "name": "test-pi-broken",
+  "version": "1.0.0",
+  "description": "Pi package with broken paths",
+  "pi": {
+    "skills": "./nonexistent-skills",
+    "extensions": "./missing-ext"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "test-pi-valid",
+  "version": "1.0.0",
+  "description": "Pi package with valid paths",
+  "pi": {
+    "skills": "./skills",
+    "themes": "./themes"
+  }
+}
