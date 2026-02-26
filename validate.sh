@@ -89,6 +89,11 @@ while [[ $# -gt 0 ]]; do
             exit 1
             ;;
         *)
+            if [[ -n "$TARGET_DIR" ]]; then
+                echo "Error: Multiple target directories specified" >&2
+                echo "Try 'validate.sh --help' for usage." >&2
+                exit 1
+            fi
             TARGET_DIR="$1"
             shift
             ;;

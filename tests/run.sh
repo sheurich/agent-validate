@@ -116,6 +116,14 @@ assert_fail "broken-yaml: yamllint catches invalid YAML" \
 assert_fail "broken-markdown: markdownlint catches bad markdown" \
     "$FIXTURES/broken-markdown" --skip "json,yaml,shell,python,claude,gemini,pi,codex,opencode,crosscheck,skills"
 
+# --- Fixture: broken-shell ---
+assert_fail "broken-shell: shellcheck catches unquoted variable" \
+    "$FIXTURES/broken-shell" --skip "json,yaml,markdown,python,claude,gemini,pi,codex,opencode,crosscheck,skills"
+
+# --- Fixture: broken-python ---
+assert_fail "broken-python: ruff catches syntax error" \
+    "$FIXTURES/broken-python" --skip "json,yaml,markdown,shell,claude,gemini,pi,codex,opencode,crosscheck,skills"
+
 # --- Task 2: Stderr content assertions ---
 
 assert_fail_stderr "broken: stderr reports name mismatch" \
@@ -324,6 +332,60 @@ assert_pass "skill-all-fields: all allowed frontmatter fields pass" \
 assert_fail_stderr "crosscheck-malformed-json: reports invalid JSON instead of crashing" \
     "is not valid JSON" \
     "$FIXTURES/crosscheck-malformed-json" --skip "$SKIP_EXTERNAL"
+
+# --- P1 #8: broken-shell and broken-python (see tier 1 section above) ---
+
+# --- P1 #9: CLI edge cases ---
+
+test_unknown_flag() {
+    local name="unknown flag exits nonzero"
+    if "$VALIDATE" --bogus >/dev/null 2>&1; then
+        echo "FAIL: $name (expected nonzero exit)" >&2
+        failed=$((failed + 1))
+    else
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    fi
+}
+test_unknown_flag
+
+assert_pass "--skip=value equals form works" \
+    "$FIXTURES/broken" \
+    "--skip=$SKIP_EXTERNAL,crosscheck,skills"
+
+test_multiple_positional() {
+    local name="multiple positional args exits nonzero"
+    if "$VALIDATE" /tmp /tmp >/dev/null 2>&1; then
+        echo "FAIL: $name (expected nonzero exit)" >&2
+        failed=$((failed + 1))
+    else
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    fi
+}
+test_multiple_positional
+
+# --- P1 #10: dependency-missing paths ---
+
+test_missing_jq() {
+    local name="missing jq exits 2"
+    local exit_code=0
+    # Use a restricted PATH unlikely to contain jq
+    PATH="/usr/bin:/bin" "$VALIDATE" "$FIXTURES/empty-dir" >/dev/null 2>&1 || exit_code=$?
+    if ! PATH="/usr/bin:/bin" command -v jq >/dev/null 2>&1; then
+        if [[ $exit_code -eq 2 ]]; then
+            echo "PASS: $name"
+            passed=$((passed + 1))
+        else
+            echo "FAIL: $name (expected exit 2, got $exit_code)" >&2
+            failed=$((failed + 1))
+        fi
+    else
+        echo "SKIP: $name (jq found on restricted PATH)"
+        passed=$((passed + 1))
+    fi
+}
+test_missing_jq
 
 echo ""
 echo "=== Results: $passed passed, $failed failed ==="
