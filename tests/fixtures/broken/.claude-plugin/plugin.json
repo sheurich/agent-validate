@@ -1,0 +1,6 @@
+{
+  "name": "broken-plugin",
+  "description": "This plugin has problems",
+  "version": "1.0.0",
+  "bogus_field": true
+}

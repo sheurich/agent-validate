@@ -1,0 +1,16 @@
+{
+  "plugins": [
+    {
+      "name": "alpha",
+      "source": "plugins/alpha",
+      "version": "1.0.0",
+      "description": "Alpha plugin"
+    },
+    {
+      "name": "beta",
+      "source": "plugins/beta",
+      "version": "2.0.0",
+      "description": "Beta plugin"
+    }
+  ]
+}
