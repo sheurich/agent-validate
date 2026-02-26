@@ -1,0 +1,1 @@
+long_key: "this is a deliberately long value that exceeds the default 120-character limit but stays under the repo-local 200-character override limit"

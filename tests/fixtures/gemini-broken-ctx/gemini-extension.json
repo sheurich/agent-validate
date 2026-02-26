@@ -1,0 +1,6 @@
+{
+  "name": "broken-ctx",
+  "description": "Broken context",
+  "version": "1.0.0",
+  "contextFileName": "nonexistent.md"
+}
