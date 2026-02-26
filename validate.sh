@@ -15,6 +15,37 @@
 
 set -euo pipefail
 
+# --- Usage ---
+usage() {
+    cat <<'EOF'
+Usage: validate.sh [OPTIONS] [TARGET_DIR]
+
+Cross-agent plugin/extension/skill validation.
+
+Options:
+  --skip CHECKS   Comma-separated checks to skip (repeatable)
+  -h, --help      Show this help message
+
+Skip values:
+  json        JSON linting (jsonlint-mod)
+  yaml        YAML linting (yamllint)
+  markdown    Markdown linting (markdownlint-cli)
+  shell       Shell linting (shellcheck)
+  python      Python linting (ruff)
+  claude      Claude Code plugin validation
+  gemini      Gemini CLI extension validation
+  pi          Pi package validation
+  codex       Codex agent file detection
+  opencode    OpenCode agent file detection
+  crosscheck  Cross-platform metadata consistency
+  skills      SKILL.md frontmatter validation
+  skill-name-match  Allow SKILL.md name ≠ folder name
+
+Environment variables:
+  VALIDATE_SKIP   Comma-separated checks to skip (merged with --skip)
+EOF
+}
+
 # --- Pinned tool versions (auditable) ---
 JSONLINT_VERSION="${JSONLINT_VERSION:-1.7.6}"
 YAMLLINT_VERSION="${YAMLLINT_VERSION:-1.37.0}"
@@ -32,16 +63,29 @@ TARGET_DIR=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
         --skip)
-            SKIP_CHECKS="$2"
+            if [[ -n "$SKIP_CHECKS" ]]; then
+                SKIP_CHECKS="${SKIP_CHECKS},$2"
+            else
+                SKIP_CHECKS="$2"
+            fi
             shift 2
             ;;
         --skip=*)
-            SKIP_CHECKS="${1#--skip=}"
+            if [[ -n "$SKIP_CHECKS" ]]; then
+                SKIP_CHECKS="${SKIP_CHECKS},${1#--skip=}"
+            else
+                SKIP_CHECKS="${1#--skip=}"
+            fi
             shift
             ;;
         -*)
             echo "Error: Unknown option: $1" >&2
+            echo "Try 'validate.sh --help' for usage." >&2
             exit 1
             ;;
         *)
@@ -58,6 +102,16 @@ if [[ -n "${VALIDATE_SKIP:-}" ]]; then
     else
         SKIP_CHECKS="$VALIDATE_SKIP"
     fi
+fi
+
+# --- Dependency checks ---
+missing_deps=()
+command -v jq >/dev/null 2>&1 || missing_deps+=(jq)
+command -v npx >/dev/null 2>&1 || missing_deps+=(npx)
+if [[ ${#missing_deps[@]} -gt 0 ]]; then
+    echo "Error: Missing required dependencies: ${missing_deps[*]}" >&2
+    echo "Install them and try again." >&2
+    exit 2
 fi
 
 # Resolve target directory
@@ -239,7 +293,7 @@ if ! should_skip "pi"; then
                     echo "Error: package.json pi path does not resolve: $pi_path" >&2
                     errors=$((errors + 1))
                 fi
-            done < <(jq -r '.pi | .. | strings' "package.json" 2>/dev/null | grep -E '^\./|^[a-zA-Z]' || true)
+            done < <(jq -r '.pi | to_entries[] | .value | if type == "array" then .[] else . end | strings' "package.json" 2>/dev/null || true)
         fi
 
         # Check for pi-package keyword (discovery convention)
@@ -312,29 +366,39 @@ if ! should_skip "crosscheck"; then
     allowed_fields='["name","description","version","author","keywords","license","repository","homepage","commands","agents","skills","hooks","mcpServers","outputStyles","lspServers"]'
 
     if [[ -f "$plugin_json" ]]; then
-        pj_name=$(jq -r '.name // empty' "$plugin_json")
-        pj_version=$(jq -r '.version // empty' "$plugin_json")
-        pj_description=$(jq -r '.description // empty' "$plugin_json")
-
-        # Field allowlist (structural check, no CLI needed)
-        bad_fields=$(jq -r --argjson allowed "$allowed_fields" \
-            '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
-            "$plugin_json")
-        if [[ -n "$bad_fields" ]]; then
-            echo "Error: plugin.json has unrecognized fields: $bad_fields" >&2
+        if ! jq empty "$plugin_json" 2>/dev/null; then
+            echo "Error: $plugin_json is not valid JSON" >&2
             errors=$((errors + 1))
+        else
+            pj_name=$(jq -r '.name // empty' "$plugin_json")
+            pj_version=$(jq -r '.version // empty' "$plugin_json")
+            pj_description=$(jq -r '.description // empty' "$plugin_json")
+
+            # Field allowlist (structural check, no CLI needed)
+            bad_fields=$(jq -r --argjson allowed "$allowed_fields" \
+                '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
+                "$plugin_json")
+            if [[ -n "$bad_fields" ]]; then
+                echo "Error: plugin.json has unrecognized fields: $bad_fields" >&2
+                errors=$((errors + 1))
+            fi
         fi
     fi
 
     if [[ -f "$gemini_json" ]]; then
-        ge_name=$(jq -r '.name // empty' "$gemini_json")
-        ge_version=$(jq -r '.version // empty' "$gemini_json")
-        ge_description=$(jq -r '.description // empty' "$gemini_json")
-
-        # Gemini extension name format: lowercase alphanumeric with dashes
-        if [[ -n "$ge_name" ]] && ! echo "$ge_name" | grep -qE '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
-            echo "Error: gemini-extension.json name '$ge_name' must be lowercase alphanumeric with dashes" >&2
+        if ! jq empty "$gemini_json" 2>/dev/null; then
+            echo "Error: $gemini_json is not valid JSON" >&2
             errors=$((errors + 1))
+        else
+            ge_name=$(jq -r '.name // empty' "$gemini_json")
+            ge_version=$(jq -r '.version // empty' "$gemini_json")
+            ge_description=$(jq -r '.description // empty' "$gemini_json")
+
+            # Gemini extension name format: lowercase alphanumeric with dashes
+            if [[ -n "$ge_name" ]] && ! echo "$ge_name" | grep -qE '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
+                echo "Error: gemini-extension.json name '$ge_name' must be lowercase alphanumeric with dashes" >&2
+                errors=$((errors + 1))
+            fi
         fi
     fi
 
