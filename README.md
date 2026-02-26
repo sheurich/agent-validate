@@ -58,7 +58,12 @@ All tool versions are pinnable via inputs (`jsonlint-version`, `yamllint-version
 
 ### Extra validation hook
 
-If `scripts/validate-extra.sh` exists in the target directory, it runs after all built-in checks. A nonzero exit code fails the overall validation.
+If `scripts/validate-extra.sh` exists in the target directory, it runs after
+all built-in checks. A nonzero exit code fails the overall validation.
+
+The hook runs via `bash scripts/validate-extra.sh` in the target directory.
+It inherits the environment but receives no arguments. Use it for
+project-specific checks that don't belong in the shared validator.
 
 ## Configuration
 
@@ -73,6 +78,44 @@ Linter configs are auto-discovered from the target repo. If none exist, bundled 
 - **Auto-detect**: platforms detected by file presence, not flags
 - **Auditable**: all tool versions pinned and overridable; GitHub Actions use full SHA pins
 - **System-first**: prefers system-installed `yamllint` and `ruff` before falling back to `uvx`
+
+## Supply chain
+
+All npm packages are invoked via `npx --yes` with pinned versions. GitHub
+Actions in `action.yml` and CI workflows use full SHA pins. Tool versions
+default to audited values and are overridable via environment variables or
+action inputs.
+
+The `validate-extra.sh` hook executes arbitrary shell code from the target
+repo. Treat it the same as any other script in a repository you've chosen
+to validate — review it before running against untrusted repos.
+
+## Troubleshooting
+
+**`npx` fails with network errors**
+Check connectivity. Tier 2 checks (`claude`, `gemini`) download large
+packages on first run. Use `--skip claude,gemini` to run structural checks
+offline.
+
+**`jq` or `npx` not found**
+validate.sh requires `jq` and `npx` (Node.js). Install them:
+
+```sh
+# macOS
+brew install jq node
+
+# Ubuntu/Debian
+sudo apt-get install jq nodejs npm
+```
+
+**SKILL.md name mismatch on promoted skills**
+Skills whose grandparent directory is `skills`, `tools`, or `howto` get a
+warning instead of an error. Use `--skip skill-name-match` to suppress the
+name-folder check entirely.
+
+**shellcheck / ruff not found**
+Shell and Python linting require `shellcheck` and `ruff` respectively. If
+neither the system binary nor `uvx` is available, the check fails.
 
 ## Spec conformance
 
