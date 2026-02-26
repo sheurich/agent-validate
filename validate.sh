@@ -118,6 +118,7 @@ if ! should_skip "yaml"; then
         yamllint_cmd=(uvx "yamllint@${YAMLLINT_VERSION}")
         if command -v yamllint >/dev/null 2>&1; then
             yamllint_cmd=(yamllint)
+            echo "Using system yamllint ($(yamllint --version 2>&1 | head -1))"
         fi
         # shellcheck disable=SC2046
         printf '%s\0' "${yaml_files[@]}" | xargs -0 "${yamllint_cmd[@]}" $(yamllint_config) || errors=$((errors + 1))
@@ -158,6 +159,7 @@ if ! should_skip "python"; then
         ruff_cmd=(uvx "ruff@${RUFF_VERSION}")
         if command -v ruff >/dev/null 2>&1; then
             ruff_cmd=(ruff)
+            echo "Using system ruff ($(ruff --version 2>&1 | head -1))"
         fi
         printf '%s\0' "${py_files[@]}" | xargs -0 "${ruff_cmd[@]}" check || errors=$((errors + 1))
     else
@@ -174,18 +176,18 @@ if ! should_skip "claude"; then
         npx --yes "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" plugin validate . || errors=$((errors + 1))
 
         # Marketplace enumeration
-        marketplace=".claude-plugin/marketplace.json"
-        if [[ -f "$marketplace" ]]; then
+        if [[ -f ".claude-plugin/marketplace.json" ]]; then
             echo "=== Validating marketplace plugins ==="
-            plugin_count=$(jq -e -r '.plugins | length' "$marketplace") || {
-                echo "Error: Failed to read plugins array from $marketplace" >&2
+            local_mp=".claude-plugin/marketplace.json"
+            plugin_count=$(jq -e -r '.plugins | length' "$local_mp") || {
+                echo "Error: Failed to read plugins array from $local_mp" >&2
                 errors=$((errors + 1))
                 plugin_count=0
             }
             for ((i = 0; i < plugin_count; i++)); do
-                mp_name=$(jq -r ".plugins[$i].name" "$marketplace")
-                mp_source=$(jq -r ".plugins[$i].source" "$marketplace")
-                mp_strict=$(jq -r "if .plugins[$i].strict == false then \"false\" else \"true\" end" "$marketplace")
+                mp_name=$(jq -r ".plugins[$i].name" "$local_mp")
+                mp_source=$(jq -r ".plugins[$i].source" "$local_mp")
+                mp_strict=$(jq -r "if .plugins[$i].strict == false then \"false\" else \"true\" end" "$local_mp")
 
                 if [[ "$mp_strict" == "false" ]]; then
                     echo "Skipping $mp_name (strict: false)"
@@ -296,13 +298,15 @@ if ! should_skip "crosscheck"; then
     gemini_json="gemini-extension.json"
     pkg_json="package.json"
 
+    # Field allowlist for plugin.json (used by root and sub-plugin checks)
+    allowed_fields='["name","description","version","author","keywords","license","repository","homepage"]'
+
     if [[ -f "$plugin_json" ]]; then
         pj_name=$(jq -r '.name // empty' "$plugin_json")
         pj_version=$(jq -r '.version // empty' "$plugin_json")
         pj_description=$(jq -r '.description // empty' "$plugin_json")
 
         # Field allowlist (structural check, no CLI needed)
-        allowed_fields='["name","description","version","author","keywords","license","repository","homepage"]'
         bad_fields=$(jq -r --argjson allowed "$allowed_fields" \
             '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
             "$plugin_json")
@@ -539,7 +543,7 @@ fi
 # --- Summary ---
 
 if [[ $errors -gt 0 ]]; then
-    echo "Error: Validation failed ($errors check(s) reported errors; see above)" >&2
+    echo "Error: Validation failed ($errors error(s); see above)" >&2
     exit 1
 fi
 

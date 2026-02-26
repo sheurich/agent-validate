@@ -1,0 +1,10 @@
+{
+  "plugins": [
+    {
+      "name": "only",
+      "source": "plugins/only",
+      "version": "1.0.0",
+      "description": "Only plugin"
+    }
+  ]
+}

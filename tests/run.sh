@@ -103,6 +103,10 @@ assert_fail_stderr "broken: stderr reports name mismatch" \
     "Name mismatch.*plugin.json.*gemini-extension.json" \
     "$FIXTURES/broken" --skip "$SKIP_EXTERNAL"
 
+assert_fail_stderr "broken: stderr reports root plugin.json allowlist violation" \
+    "plugin.json has unrecognized fields.*bogus_field" \
+    "$FIXTURES/broken" --skip "$SKIP_EXTERNAL"
+
 assert_fail_stderr "broken: stderr reports version mismatch" \
     "Version mismatch" \
     "$FIXTURES/broken" --skip "$SKIP_EXTERNAL"
@@ -164,6 +168,9 @@ assert_pass "pi-valid-paths: valid pi paths pass" \
 
 assert_pass "marketplace-strict-false: strict:false plugins are skipped" \
     "$FIXTURES/marketplace-strict-false" --skip "$SKIP_EXTERNAL"
+
+assert_pass "marketplace-no-root-pj: marketplace without root plugin.json passes" \
+    "$FIXTURES/marketplace-no-root-pj" --skip "$SKIP_EXTERNAL"
 
 assert_fail_stderr "marketplace-bad-fields: per-plugin allowlist catches bogus fields" \
     "unrecognized fields" \
