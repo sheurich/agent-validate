@@ -131,12 +131,14 @@ assert_pass "extra-hook-pass: passing hook allows success" \
 assert_pass "config-override: repo-local yamllint config overrides bundled default" \
     "$FIXTURES/config-override" --skip "json,markdown,shell,python,claude,gemini,pi,codex,opencode,crosscheck,skills"
 
-# NOTE: Gemini contextFileName assertions require Task 6 refactor
-# assert_fail_stderr "gemini-broken-ctx: detects missing context file" \
-#     "references.*nonexistent.md.*but file not found" \
-#     "$FIXTURES/gemini-broken-ctx" --skip "$SKIP_EXTERNAL"
-# assert_pass "gemini-valid-ctx: valid context file passes" \
-#     "$FIXTURES/gemini-valid-ctx" --skip "$SKIP_EXTERNAL"
+# --- Fixture: gemini-broken-ctx ---
+assert_fail_stderr "gemini-broken-ctx: detects missing context file" \
+    "references.*nonexistent.md.*but file not found" \
+    "$FIXTURES/gemini-broken-ctx" --skip "$SKIP_EXTERNAL"
+
+# --- Fixture: gemini-valid-ctx ---
+assert_pass "gemini-valid-ctx: valid context file passes" \
+    "$FIXTURES/gemini-valid-ctx" --skip "$SKIP_EXTERNAL"
 
 # --- Task 5: Edge cases ---
 

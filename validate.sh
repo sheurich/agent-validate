@@ -229,45 +229,6 @@ if ! should_skip "gemini"; then
     if [[ -f "gemini-extension.json" ]]; then
         echo "=== Validating Gemini extension ==="
         npx --yes "@google/gemini-cli@${GEMINI_CLI_VERSION}" extensions validate . || errors=$((errors + 1))
-
-        echo "=== Checking Gemini extension context files ==="
-        context_file=$(jq -r '.contextFileName // empty' "gemini-extension.json")
-        if [[ -n "$context_file" ]]; then
-            if [[ ! -f "$context_file" ]]; then
-                echo "Error: gemini-extension.json references '$context_file' but file not found" >&2
-                errors=$((errors + 1))
-            fi
-        else
-            if [[ ! -f "GEMINI.md" ]]; then
-                echo "Note: No contextFileName and no GEMINI.md (Gemini gets no root context)"
-            fi
-        fi
-    fi
-
-    # Check Gemini extensions in marketplace sub-plugins
-    if [[ -f "$marketplace" ]] && [[ -v plugin_count ]] && [[ "$plugin_count" -gt 0 ]]; then
-        echo "=== Checking Gemini extension context files (marketplace) ==="
-        for ((i = 0; i < plugin_count; i++)); do
-            mp_source=$(jq -r ".plugins[$i].source" "$marketplace")
-            mp_strict=$(jq -r "if .plugins[$i].strict == false then \"false\" else \"true\" end" "$marketplace")
-            [[ "$mp_strict" == "false" ]] && continue
-
-            sub_gemini="$mp_source/gemini-extension.json"
-            [[ -f "$sub_gemini" ]] || continue
-
-            mp_name=$(jq -r ".plugins[$i].name" "$marketplace")
-            sub_ctx=$(jq -r '.contextFileName // empty' "$sub_gemini")
-            if [[ -n "$sub_ctx" ]]; then
-                if [[ ! -f "$mp_source/$sub_ctx" ]]; then
-                    echo "Error: $mp_name gemini-extension.json references '$sub_ctx' but file not found" >&2
-                    errors=$((errors + 1))
-                fi
-            else
-                if [[ ! -f "$mp_source/GEMINI.md" ]]; then
-                    echo "Note: $mp_name has no contextFileName and no GEMINI.md (Gemini gets no root context)"
-                fi
-            fi
-        done
     fi
 fi
 
@@ -408,6 +369,22 @@ if ! should_skip "crosscheck"; then
         errors=$((errors + 1))
     fi
 
+    # Gemini contextFileName file resolution
+    if [[ -f "$gemini_json" ]]; then
+        echo "=== Checking Gemini extension context files ==="
+        context_file=$(jq -r '.contextFileName // empty' "$gemini_json")
+        if [[ -n "$context_file" ]]; then
+            if [[ ! -f "$context_file" ]]; then
+                echo "Error: gemini-extension.json references '$context_file' but file not found" >&2
+                errors=$((errors + 1))
+            fi
+        else
+            if [[ ! -f "GEMINI.md" ]]; then
+                echo "Note: No contextFileName and no GEMINI.md (Gemini gets no root context)"
+            fi
+        fi
+    fi
+
     # Marketplace cross-checks
     marketplace=".claude-plugin/marketplace.json"
     if [[ -f "$marketplace" ]]; then
@@ -460,6 +437,33 @@ if ! should_skip "crosscheck"; then
                 if [[ -n "$mp_description" && -n "$sub_ge_description" && "$mp_description" != "$sub_ge_description" ]]; then
                     echo "Error: Description mismatch for $mp_name: marketplace='$mp_description' gemini-extension.json='$sub_ge_description'" >&2
                     errors=$((errors + 1))
+                fi
+            fi
+        done
+    fi
+
+    # Marketplace sub-plugin contextFileName resolution
+    if [[ -f "$marketplace" ]]; then
+        echo "=== Checking Gemini extension context files (marketplace) ==="
+        mp_ctx_count=$(jq -e -r '.plugins | length' "$marketplace" 2>/dev/null) || mp_ctx_count=0
+        for ((i = 0; i < mp_ctx_count; i++)); do
+            mp_source=$(jq -r ".plugins[$i].source" "$marketplace")
+            mp_strict=$(jq -r "if .plugins[$i].strict == false then \"false\" else \"true\" end" "$marketplace")
+            [[ "$mp_strict" == "false" ]] && continue
+
+            sub_gemini="$mp_source/gemini-extension.json"
+            [[ -f "$sub_gemini" ]] || continue
+
+            mp_name=$(jq -r ".plugins[$i].name" "$marketplace")
+            sub_ctx=$(jq -r '.contextFileName // empty' "$sub_gemini")
+            if [[ -n "$sub_ctx" ]]; then
+                if [[ ! -f "$mp_source/$sub_ctx" ]]; then
+                    echo "Error: $mp_name gemini-extension.json references '$sub_ctx' but file not found" >&2
+                    errors=$((errors + 1))
+                fi
+            else
+                if [[ ! -f "$mp_source/GEMINI.md" ]]; then
+                    echo "Note: $mp_name has no contextFileName and no GEMINI.md (Gemini gets no root context)"
                 fi
             fi
         done
