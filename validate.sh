@@ -689,8 +689,10 @@ if ! should_skip "skills"; then
         skill_dirs+=("$d")
     done < <(find -P . -path "*/plugins/*/skills" -type d -print0 2>/dev/null)
 
-    # Allowed frontmatter fields (Agent Skills spec + user-invocable extension)
+    # Allowed frontmatter fields (Agent Skills spec)
     allowed_fm_fields="name description license allowed-tools metadata compatibility"
+    # Known agent-specific extensions (warning, not error)
+    known_extensions="user-invocable argument-hint"
 
     if [[ ${#skill_dirs[@]} -gt 0 ]]; then
         info "=== Checking SKILL.md (Agent Skills specification) ==="
@@ -767,7 +769,7 @@ if ! should_skip "skills"; then
                 [[ -z "$field_name" ]] && continue
                 # Check against spec allowlist
                 if ! echo " $allowed_fm_fields " | grep -q " $field_name "; then
-                    if [[ "$field_name" == "user-invocable" ]]; then
+                    if echo " $known_extensions " | grep -q " $field_name "; then
                         echo "Warning: '$field_name' is not part of the Agent Skills specification; may not be portable across agents ($skill_file)" >&2
                     else
                         echo "Error: Unexpected frontmatter field '$field_name' in $skill_file (allowed: $allowed_fm_fields)" >&2

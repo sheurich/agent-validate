@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `SECURITY.md` with vulnerability reporting and trust model documentation
 - Test harness `--filter` pattern argument for running a subset of tests
 - Pinned shellcheck v0.11.0 in CI via `ludeeus/action-shellcheck` (SHA-pinned)
+- `argument-hint` frontmatter field accepted with portability warning (Pi extension)
 
 ### Changed
 

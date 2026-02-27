@@ -358,6 +358,10 @@ assert_pass_stderr "skill-user-invocable: accepts user-invocable with portabilit
     "user-invocable.*not part of the Agent Skills specification" \
     "$FIXTURES/skill-user-invocable" --skip "$SKIP_EXTERNAL,crosscheck"
 
+assert_pass_stderr "skill-argument-hint: accepts argument-hint with portability warning" \
+    "argument-hint.*not part of the Agent Skills specification" \
+    "$FIXTURES/skill-argument-hint" --skip "$SKIP_EXTERNAL,crosscheck"
+
 assert_pass "skill-name-match-skip: name≠folder passes with skill-name-match skipped" \
     "$FIXTURES/skill-name-match-skip" --skip "$SKIP_EXTERNAL,crosscheck,skill-name-match"
 
