@@ -38,6 +38,10 @@ inputs:
     description: gemini-cli version
     required: false
     default: "0.26.0"
+  typescript-version:
+    description: typescript version
+    required: false
+    default: "5.8.3"
 
 outputs:
   result:
@@ -80,5 +84,6 @@ runs:
         RUFF_VERSION: ${{ inputs.ruff-version }}
         CLAUDE_CODE_VERSION: ${{ inputs.claude-code-version }}
         GEMINI_CLI_VERSION: ${{ inputs.gemini-cli-version }}
+        TYPESCRIPT_VERSION: ${{ inputs.typescript-version }}
       run: |
         ${{ github.action_path }}/validate.sh "$INPUT_PATH"
