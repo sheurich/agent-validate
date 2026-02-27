@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `SECURITY.md` with vulnerability reporting and trust model documentation
+- Test harness `--filter` pattern argument for running a subset of tests
+- Pinned shellcheck v0.11.0 in CI via `ludeeus/action-shellcheck` (SHA-pinned)
+
+### Changed
+
+- CHANGELOG: folded `[Unreleased]` content into `[1.0.0]` versioned heading
+
+## [1.0.0] - 2026-02-26
+
+### Added
+
 - `--help` / `-h` flag with usage and available skip values
 - Dependency checks at startup (jq, npx required; exit 2 if missing)
 - SKILL.md validation aligned with [Agent Skills specification](https://agentskills.io/docs/specification):
