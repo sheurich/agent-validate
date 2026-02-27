@@ -14,8 +14,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Pinned shellcheck v0.11.0 in CI via `ludeeus/action-shellcheck` (SHA-pinned)
 - `argument-hint` frontmatter field accepted with portability warning (Pi extension)
 
+### Fixed
+
+- `action.yml`: use `env:` for all user-controlled inputs (prevents shell injection)
+- `--skip` without a value or with a path-like value now errors instead of silently
+  consuming the next argument
+- JSON and YAML linters now exclude `.venv/` and `site-packages/` (consistent with
+  shell and Python linters)
+- TypeScript checker shows diagnostics instead of suppressing stderr with `2>/dev/null`
+- TypeScript pinned to `5.8.3` instead of `@latest` for reproducible results
+- shellcheck availability checked before use; missing shellcheck produces a clear
+  warning instead of a confusing xargs error
+- Sub-plugin JSON files validated with `jq empty` before field extraction; malformed
+  sub-plugin JSON now reports an error instead of aborting the script
+- `SCRIPT_DIR` with spaces no longer breaks config resolution (array-based config
+  args replace word-splitting functions)
+
 ### Changed
 
+- Codex/OpenCode sections say "Detecting" instead of "Validating" (no validation
+  is performed; the old banner was misleading)
 - CHANGELOG: folded `[Unreleased]` content into `[1.0.0]` versioned heading
 
 ## [1.0.0] - 2026-02-26

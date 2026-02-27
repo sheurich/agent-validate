@@ -62,13 +62,17 @@ runs:
 
     - name: Install system tools
       shell: bash
+      env:
+        YAMLLINT_VERSION: ${{ inputs.yamllint-version }}
+        RUFF_VERSION: ${{ inputs.ruff-version }}
       run: |
-        pip install --quiet "yamllint==${{ inputs.yamllint-version }}" "ruff==${{ inputs.ruff-version }}"
+        pip install --quiet "yamllint==${YAMLLINT_VERSION}" "ruff==${RUFF_VERSION}"
 
     - name: Run validation
       id: validate
       shell: bash
       env:
+        INPUT_PATH: ${{ inputs.path }}
         VALIDATE_SKIP: ${{ inputs.skip }}
         JSONLINT_VERSION: ${{ inputs.jsonlint-version }}
         YAMLLINT_VERSION: ${{ inputs.yamllint-version }}
@@ -77,4 +81,4 @@ runs:
         CLAUDE_CODE_VERSION: ${{ inputs.claude-code-version }}
         GEMINI_CLI_VERSION: ${{ inputs.gemini-cli-version }}
       run: |
-        ${{ github.action_path }}/validate.sh "${{ inputs.path }}"
+        ${{ github.action_path }}/validate.sh "$INPUT_PATH"

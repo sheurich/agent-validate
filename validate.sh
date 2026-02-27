@@ -12,6 +12,7 @@
 #   RUFF_VERSION           ruff version (default: 0.14.14)
 #   CLAUDE_CODE_VERSION    @anthropic-ai/claude-code version (default: 2.1.22)
 #   GEMINI_CLI_VERSION     @google/gemini-cli version (default: 0.26.0)
+#   TYPESCRIPT_VERSION     typescript version (default: 5.8.3)
 
 set -euo pipefail
 
@@ -58,6 +59,7 @@ MARKDOWNLINT_VERSION="${MARKDOWNLINT_VERSION:-0.47.0}"
 RUFF_VERSION="${RUFF_VERSION:-0.14.14}"
 CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.22}"
 GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION:-0.26.0}"
+TYPESCRIPT_VERSION="${TYPESCRIPT_VERSION:-5.8.3}"
 
 # --- Script location (for bundled defaults) ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -87,6 +89,15 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --skip)
+            if [[ $# -lt 2 || "$2" == -* ]]; then
+                echo "Error: --skip requires a value (e.g., --skip json,yaml)" >&2
+                exit 1
+            fi
+            if [[ "$2" == /* || "$2" == ./* || "$2" == ../* ]]; then
+                echo "Error: --skip value '$2' looks like a path, not check names" >&2
+                echo "Usage: validate.sh [--skip CHECKS] [TARGET_DIR]" >&2
+                exit 1
+            fi
             if [[ -n "$SKIP_CHECKS" ]]; then
                 SKIP_CHECKS="${SKIP_CHECKS},$2"
             else
@@ -176,22 +187,17 @@ run_npx() {
 }
 
 # --- Linter config resolution ---
-# Use repo-local config if present, otherwise fall back to bundled defaults
-yamllint_config() {
-    if [[ -f ".yamllint.yml" || -f ".yamllint.yaml" || -f ".yamllint" ]]; then
-        echo ""  # yamllint auto-discovers repo-local config
-    else
-        echo "-c ${SCRIPT_DIR}/defaults/.yamllint.yml"
-    fi
-}
+# Resolve after cd so repo-local configs are detected in TARGET_DIR.
+# Use repo-local config if present, otherwise fall back to bundled defaults.
+yamllint_config_args=()
+if [[ ! -f ".yamllint.yml" && ! -f ".yamllint.yaml" && ! -f ".yamllint" ]]; then
+    yamllint_config_args=(-c "${SCRIPT_DIR}/defaults/.yamllint.yml")
+fi
 
-markdownlint_config() {
-    if [[ -f ".markdownlint.json" || -f ".markdownlint.jsonc" || -f ".markdownlint.yml" || -f ".markdownlint.yaml" ]]; then
-        echo ""  # markdownlint auto-discovers repo-local config
-    else
-        echo "--config ${SCRIPT_DIR}/defaults/.markdownlint.json"
-    fi
-}
+markdownlint_config_args=()
+if [[ ! -f ".markdownlint.json" && ! -f ".markdownlint.jsonc" && ! -f ".markdownlint.yml" && ! -f ".markdownlint.yaml" ]]; then
+    markdownlint_config_args=(--config "${SCRIPT_DIR}/defaults/.markdownlint.json")
+fi
 
 # --- State ---
 errors=0
@@ -203,7 +209,7 @@ if ! should_skip "json"; then
     json_files=()
     while IFS= read -r -d '' f; do
         json_files+=("$f")
-    done < <(find -P . -name "*.json" -not -path "./.git/*" -not -path "./node_modules/*" -print0)
+    done < <(find -P . -name "*.json" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -print0)
     if [[ ${#json_files[@]} -gt 0 ]]; then
         printf '%s\0' "${json_files[@]}" | xargs -0 -n1 npx --yes "jsonlint-mod@${JSONLINT_VERSION}" -q || errors=$((errors + 1))
     else
@@ -216,7 +222,7 @@ if ! should_skip "yaml"; then
     yaml_files=()
     while IFS= read -r -d '' f; do
         yaml_files+=("$f")
-    done < <(find -P . \( -name "*.yml" -o -name "*.yaml" \) -not -path "./.git/*" -not -path "./node_modules/*" -print0)
+    done < <(find -P . \( -name "*.yml" -o -name "*.yaml" \) -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -print0)
     if [[ ${#yaml_files[@]} -gt 0 ]]; then
         # Use system yamllint if available (e.g. pip install in CI), otherwise uvx
         yamllint_cmd=(uvx "yamllint@${YAMLLINT_VERSION}")
@@ -224,8 +230,7 @@ if ! should_skip "yaml"; then
             yamllint_cmd=(yamllint)
             detail "Using system yamllint ($(yamllint --version 2>&1 | head -1))"
         fi
-        # shellcheck disable=SC2046
-        printf '%s\0' "${yaml_files[@]}" | xargs -0 "${yamllint_cmd[@]}" $(yamllint_config) || errors=$((errors + 1))
+        printf '%s\0' "${yaml_files[@]}" | xargs -0 "${yamllint_cmd[@]}" ${yamllint_config_args[@]+"${yamllint_config_args[@]}"} || errors=$((errors + 1))
     else
         info "No YAML files found, skipping"
     fi
@@ -233,22 +238,25 @@ fi
 
 if ! should_skip "markdown"; then
     info "=== Validating Markdown ==="
-    # shellcheck disable=SC2046
     npx --yes "markdownlint-cli@${MARKDOWNLINT_VERSION}" '**/*.md' \
         --ignore node_modules --ignore '**/vendor/**' \
-        $(markdownlint_config) || errors=$((errors + 1))
+        ${markdownlint_config_args[@]+"${markdownlint_config_args[@]}"} || errors=$((errors + 1))
 fi
 
 if ! should_skip "shell"; then
-    info "=== Validating Shell ==="
-    shell_files=()
-    while IFS= read -r -d '' f; do
-        shell_files+=("$f")
-    done < <(find -P . -name "*.sh" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -print0)
-    if [[ ${#shell_files[@]} -gt 0 ]]; then
-        printf '%s\0' "${shell_files[@]}" | xargs -0 shellcheck || errors=$((errors + 1))
+    if ! command -v shellcheck >/dev/null 2>&1; then
+        echo "Warning: shellcheck not found, skipping shell linting" >&2
     else
-        info "No shell files found, skipping"
+        info "=== Validating Shell ==="
+        shell_files=()
+        while IFS= read -r -d '' f; do
+            shell_files+=("$f")
+        done < <(find -P . -name "*.sh" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -print0)
+        if [[ ${#shell_files[@]} -gt 0 ]]; then
+            printf '%s\0' "${shell_files[@]}" | xargs -0 shellcheck || errors=$((errors + 1))
+        else
+            info "No shell files found, skipping"
+        fi
     fi
 fi
 
@@ -363,8 +371,9 @@ if ! should_skip "pi"; then
             if command -v npx >/dev/null 2>&1; then
                 info "Checking TypeScript syntax in extensions/"
                 for ts in "${ts_files[@]}"; do
-                    npx --yes typescript@latest tsc --noEmit --allowJs --checkJs false "$ts" 2>/dev/null || {
+                    tsc_output=$(npx --yes "typescript@${TYPESCRIPT_VERSION}" tsc --noEmit --allowJs --checkJs false "$ts" 2>&1) || {
                         echo "Error: TypeScript syntax error in $ts" >&2
+                        echo "$tsc_output" >&2
                         errors=$((errors + 1))
                     }
                 done
@@ -376,7 +385,7 @@ fi
 # Codex
 if ! should_skip "codex"; then
     if [[ -f "AGENTS.md" || -f "codex.md" ]]; then
-        info "=== Validating Codex agent files ==="
+        info "=== Detecting Codex agent files ==="
         for f in AGENTS.md codex.md; do
             if [[ -f "$f" ]]; then
                 info "Found: $f"
@@ -388,7 +397,7 @@ fi
 # OpenCode
 if ! should_skip "opencode"; then
     if [[ -f "AGENTS.md" ]]; then
-        info "=== Validating OpenCode agent files ==="
+        info "=== Detecting OpenCode agent files ==="
         info "Found: AGENTS.md"
     fi
 fi
@@ -586,49 +595,59 @@ if ! should_skip "crosscheck"; then
             sub_ge="$mp_source/gemini-extension.json"
 
             if [[ -f "$sub_pj" ]]; then
-                sub_pj_name=$(jq -r '.name // empty' "$sub_pj")
-                sub_pj_version=$(jq -r '.version // empty' "$sub_pj")
-                sub_pj_description=$(jq -r '.description // empty' "$sub_pj")
+                if ! jq empty "$sub_pj" 2>/dev/null; then
+                    echo "Error: $mp_name plugin.json is not valid JSON ($sub_pj)" >&2
+                    errors=$((errors + 1))
+                else
+                    sub_pj_name=$(jq -r '.name // empty' "$sub_pj")
+                    sub_pj_version=$(jq -r '.version // empty' "$sub_pj")
+                    sub_pj_description=$(jq -r '.description // empty' "$sub_pj")
 
-                if [[ -n "$mp_name" && -n "$sub_pj_name" && "$mp_name" != "$sub_pj_name" ]]; then
-                    echo "Error: Name mismatch for $mp_name: marketplace='$mp_name' plugin.json='$sub_pj_name'" >&2
-                    errors=$((errors + 1))
-                fi
-                if [[ -n "$mp_version" && -n "$sub_pj_version" && "$mp_version" != "$sub_pj_version" ]]; then
-                    echo "Error: Version mismatch for $mp_name: marketplace='$mp_version' plugin.json='$sub_pj_version'" >&2
-                    errors=$((errors + 1))
-                fi
-                if [[ -n "$mp_description" && -n "$sub_pj_description" && "$mp_description" != "$sub_pj_description" ]]; then
-                    echo "Error: Description mismatch for $mp_name: marketplace='$mp_description' plugin.json='$sub_pj_description'" >&2
-                    errors=$((errors + 1))
-                fi
+                    if [[ -n "$mp_name" && -n "$sub_pj_name" && "$mp_name" != "$sub_pj_name" ]]; then
+                        echo "Error: Name mismatch for $mp_name: marketplace='$mp_name' plugin.json='$sub_pj_name'" >&2
+                        errors=$((errors + 1))
+                    fi
+                    if [[ -n "$mp_version" && -n "$sub_pj_version" && "$mp_version" != "$sub_pj_version" ]]; then
+                        echo "Error: Version mismatch for $mp_name: marketplace='$mp_version' plugin.json='$sub_pj_version'" >&2
+                        errors=$((errors + 1))
+                    fi
+                    if [[ -n "$mp_description" && -n "$sub_pj_description" && "$mp_description" != "$sub_pj_description" ]]; then
+                        echo "Error: Description mismatch for $mp_name: marketplace='$mp_description' plugin.json='$sub_pj_description'" >&2
+                        errors=$((errors + 1))
+                    fi
 
-                # Per-plugin field allowlist
-                sub_bad=$(jq -r --argjson allowed "$allowed_fields" \
-                    '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
-                    "$sub_pj")
-                if [[ -n "$sub_bad" ]]; then
-                    echo "Error: $mp_name plugin.json has unrecognized fields: $sub_bad" >&2
-                    errors=$((errors + 1))
+                    # Per-plugin field allowlist
+                    sub_bad=$(jq -r --argjson allowed "$allowed_fields" \
+                        '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
+                        "$sub_pj")
+                    if [[ -n "$sub_bad" ]]; then
+                        echo "Error: $mp_name plugin.json has unrecognized fields: $sub_bad" >&2
+                        errors=$((errors + 1))
+                    fi
                 fi
             fi
 
             if [[ -f "$sub_ge" ]]; then
-                sub_ge_name=$(jq -r '.name // empty' "$sub_ge")
-                sub_ge_version=$(jq -r '.version // empty' "$sub_ge")
-                sub_ge_description=$(jq -r '.description // empty' "$sub_ge")
+                if ! jq empty "$sub_ge" 2>/dev/null; then
+                    echo "Error: $mp_name gemini-extension.json is not valid JSON ($sub_ge)" >&2
+                    errors=$((errors + 1))
+                else
+                    sub_ge_name=$(jq -r '.name // empty' "$sub_ge")
+                    sub_ge_version=$(jq -r '.version // empty' "$sub_ge")
+                    sub_ge_description=$(jq -r '.description // empty' "$sub_ge")
 
-                if [[ -n "$mp_name" && -n "$sub_ge_name" && "$mp_name" != "$sub_ge_name" ]]; then
-                    echo "Error: Name mismatch for $mp_name: marketplace='$mp_name' gemini-extension.json='$sub_ge_name'" >&2
-                    errors=$((errors + 1))
-                fi
-                if [[ -n "$mp_version" && -n "$sub_ge_version" && "$mp_version" != "$sub_ge_version" ]]; then
-                    echo "Error: Version mismatch for $mp_name: marketplace='$mp_version' gemini-extension.json='$sub_ge_version'" >&2
-                    errors=$((errors + 1))
-                fi
-                if [[ -n "$mp_description" && -n "$sub_ge_description" && "$mp_description" != "$sub_ge_description" ]]; then
-                    echo "Error: Description mismatch for $mp_name: marketplace='$mp_description' gemini-extension.json='$sub_ge_description'" >&2
-                    errors=$((errors + 1))
+                    if [[ -n "$mp_name" && -n "$sub_ge_name" && "$mp_name" != "$sub_ge_name" ]]; then
+                        echo "Error: Name mismatch for $mp_name: marketplace='$mp_name' gemini-extension.json='$sub_ge_name'" >&2
+                        errors=$((errors + 1))
+                    fi
+                    if [[ -n "$mp_version" && -n "$sub_ge_version" && "$mp_version" != "$sub_ge_version" ]]; then
+                        echo "Error: Version mismatch for $mp_name: marketplace='$mp_version' gemini-extension.json='$sub_ge_version'" >&2
+                        errors=$((errors + 1))
+                    fi
+                    if [[ -n "$mp_description" && -n "$sub_ge_description" && "$mp_description" != "$sub_ge_description" ]]; then
+                        echo "Error: Description mismatch for $mp_name: marketplace='$mp_description' gemini-extension.json='$sub_ge_description'" >&2
+                        errors=$((errors + 1))
+                    fi
                 fi
             fi
         done

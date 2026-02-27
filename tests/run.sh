@@ -398,11 +398,11 @@ test_codex_detection() {
     fi
     local stdout
     stdout=$("$VALIDATE" --skip "json,yaml,markdown,shell,python,claude,gemini,pi,opencode,crosscheck,skills" "$FIXTURES/codex-detection" 2>&1)
-    if echo "$stdout" | grep -q "Validating Codex"; then
+    if echo "$stdout" | grep -q "Detecting Codex"; then
         echo "PASS: $name"
         passed=$((passed + 1))
     else
-        echo "FAIL: $name (stdout missing 'Validating Codex')" >&2
+        echo "FAIL: $name (stdout missing 'Detecting Codex')" >&2
         echo "  Got: $stdout" >&2
         failed=$((failed + 1))
     fi
@@ -417,11 +417,11 @@ test_opencode_detection() {
     fi
     local stdout
     stdout=$("$VALIDATE" --skip "json,yaml,markdown,shell,python,claude,gemini,pi,codex,crosscheck,skills" "$FIXTURES/opencode-detection" 2>&1)
-    if echo "$stdout" | grep -q "Validating OpenCode"; then
+    if echo "$stdout" | grep -q "Detecting OpenCode"; then
         echo "PASS: $name"
         passed=$((passed + 1))
     else
-        echo "FAIL: $name (stdout missing 'Validating OpenCode')" >&2
+        echo "FAIL: $name (stdout missing 'Detecting OpenCode')" >&2
         echo "  Got: $stdout" >&2
         failed=$((failed + 1))
     fi
@@ -470,6 +470,62 @@ test_multiple_positional() {
     fi
 }
 test_multiple_positional
+
+# --- Fix: --skip missing value ---
+
+test_skip_missing_value() {
+    local name="--skip without value exits nonzero"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    if "$VALIDATE" --skip >/dev/null 2>&1; then
+        echo "FAIL: $name (expected nonzero exit)" >&2
+        failed=$((failed + 1))
+    else
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    fi
+}
+test_skip_missing_value
+
+test_skip_path_value() {
+    local name="--skip with path-like value exits nonzero"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    if "$VALIDATE" --skip /some/dir >/dev/null 2>&1; then
+        echo "FAIL: $name (expected nonzero exit)" >&2
+        failed=$((failed + 1))
+    else
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    fi
+}
+test_skip_path_value
+
+test_skip_existing_dir_value() {
+    local name="--skip with existing directory as value exits nonzero"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    if "$VALIDATE" --skip "$FIXTURES/empty-dir" >/dev/null 2>&1; then
+        echo "FAIL: $name (expected nonzero exit)" >&2
+        failed=$((failed + 1))
+    else
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    fi
+}
+test_skip_existing_dir_value
+
+# --- Fix: sub-plugin malformed JSON ---
+
+assert_fail_stderr "marketplace-malformed-subplugin: reports invalid sub-plugin JSON" \
+    "is not valid JSON" \
+    "$FIXTURES/marketplace-malformed-subplugin" --skip "$SKIP_EXTERNAL"
 
 # --- P1 #10: dependency-missing paths ---
 
