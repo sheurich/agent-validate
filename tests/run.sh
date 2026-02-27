@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # tests/run.sh — Test suite for validate.sh
 #
+# Usage: ./tests/run.sh [FILTER]
+#
 # Runs validate.sh against each fixture directory and asserts expected outcomes.
+# Optional FILTER pattern matches against test names (substring match).
 
 set -euo pipefail
 
@@ -10,12 +13,19 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 VALIDATE="$REPO_ROOT/validate.sh"
 FIXTURES="$SCRIPT_DIR/fixtures"
 
+FILTER="${1:-}"
+
 passed=0
 failed=0
+skipped=0
 
 assert_pass() {
     local name="$1" dir="$2"
     shift 2
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
     if "$VALIDATE" "$@" "$dir" >/dev/null 2>&1; then
         echo "PASS: $name"
         passed=$((passed + 1))
@@ -28,6 +38,10 @@ assert_pass() {
 assert_fail() {
     local name="$1" dir="$2"
     shift 2
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
     if "$VALIDATE" "$@" "$dir" >/dev/null 2>&1; then
         echo "FAIL: $name (expected failure, got exit 0)" >&2
         failed=$((failed + 1))
@@ -40,6 +54,10 @@ assert_fail() {
 assert_fail_stderr() {
     local name="$1" expected_pattern="$2" dir="$3"
     shift 3
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
     local stderr_output
     stderr_output=$("$VALIDATE" "$@" "$dir" 2>&1 >/dev/null) || true
     if echo "$stderr_output" | grep -qE "$expected_pattern"; then
@@ -55,6 +73,10 @@ assert_fail_stderr() {
 assert_pass_stderr() {
     local name="$1" expected_pattern="$2" dir="$3"
     shift 3
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
     local stderr_output
     if ! stderr_output=$("$VALIDATE" "$@" "$dir" 2>&1 >/dev/null); then
         echo "FAIL: $name (expected pass, got failure)" >&2
@@ -257,6 +279,10 @@ assert_pass_stderr "pi-no-keyword: warns about missing pi-package keyword" \
 
 test_help_flag() {
     local name="--help exits 0"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
     if "$VALIDATE" --help >/dev/null 2>&1; then
         echo "PASS: $name"
         passed=$((passed + 1))
@@ -269,6 +295,10 @@ test_help_flag
 
 test_version_flag() {
     local name="--version exits 0 with version string"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
     local output
     if output=$("$VALIDATE" --version 2>&1) && echo "$output" | grep -q "^agent-validate "; then
         echo "PASS: $name"
@@ -358,6 +388,10 @@ assert_fail_stderr "marketplace-dotdot-source: rejects .. in source path" \
 
 test_codex_detection() {
     local name="codex-detection: detects AGENTS.md for Codex"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
     local stdout
     stdout=$("$VALIDATE" --skip "json,yaml,markdown,shell,python,claude,gemini,pi,opencode,crosscheck,skills" "$FIXTURES/codex-detection" 2>&1)
     if echo "$stdout" | grep -q "Validating Codex"; then
@@ -373,6 +407,10 @@ test_codex_detection
 
 test_opencode_detection() {
     local name="opencode-detection: detects AGENTS.md for OpenCode"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
     local stdout
     stdout=$("$VALIDATE" --skip "json,yaml,markdown,shell,python,claude,gemini,pi,codex,crosscheck,skills" "$FIXTURES/opencode-detection" 2>&1)
     if echo "$stdout" | grep -q "Validating OpenCode"; then
@@ -395,6 +433,10 @@ assert_pass "pi-auto-detect: detects Pi by skills/ directory presence" \
 
 test_unknown_flag() {
     local name="unknown flag exits nonzero"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
     if "$VALIDATE" --bogus >/dev/null 2>&1; then
         echo "FAIL: $name (expected nonzero exit)" >&2
         failed=$((failed + 1))
@@ -411,6 +453,10 @@ assert_pass "--skip=value equals form works" \
 
 test_multiple_positional() {
     local name="multiple positional args exits nonzero"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
     if "$VALIDATE" /tmp /tmp >/dev/null 2>&1; then
         echo "FAIL: $name (expected nonzero exit)" >&2
         failed=$((failed + 1))
@@ -425,6 +471,10 @@ test_multiple_positional
 
 test_missing_jq() {
     local name="missing jq exits 2"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
     local exit_code=0
     # Use a restricted PATH unlikely to contain jq
     PATH="/usr/bin:/bin" "$VALIDATE" "$FIXTURES/empty-dir" >/dev/null 2>&1 || exit_code=$?
@@ -444,7 +494,11 @@ test_missing_jq() {
 test_missing_jq
 
 echo ""
-echo "=== Results: $passed passed, $failed failed ==="
+if [[ -n "$FILTER" ]]; then
+    echo "=== Results: $passed passed, $failed failed, $skipped skipped (filter: \"$FILTER\") ==="
+else
+    echo "=== Results: $passed passed, $failed failed ==="
+fi
 
 if [[ $failed -gt 0 ]]; then
     exit 1
