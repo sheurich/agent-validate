@@ -138,9 +138,16 @@ assert_fail "broken-yaml: yamllint catches invalid YAML" \
 assert_fail "broken-markdown: markdownlint catches bad markdown" \
     "$FIXTURES/broken-markdown" --skip "json,yaml,shell,python,claude,gemini,pi,codex,opencode,crosscheck,skills"
 
-# --- Fixture: broken-shell ---
-assert_fail "broken-shell: shellcheck catches unquoted variable" \
-    "$FIXTURES/broken-shell" --skip "json,yaml,markdown,python,claude,gemini,pi,codex,opencode,crosscheck,skills"
+# --- Fixture: broken-shell (requires shellcheck) ---
+if ! command -v shellcheck >/dev/null 2>&1; then
+    if [[ -z "$FILTER" || "broken-shell" == *"$FILTER"* ]]; then
+        echo "SKIP: broken-shell (shellcheck not installed)"
+        skipped=$((skipped + 1))
+    fi
+else
+    assert_fail "broken-shell: shellcheck catches unquoted variable" \
+        "$FIXTURES/broken-shell" --skip "json,yaml,markdown,python,claude,gemini,pi,codex,opencode,crosscheck,skills"
+fi
 
 # --- Fixture: broken-python ---
 assert_fail "broken-python: ruff catches syntax error" \
@@ -556,6 +563,8 @@ test_missing_jq
 echo ""
 if [[ -n "$FILTER" ]]; then
     echo "=== Results: $passed passed, $failed failed, $skipped skipped (filter: \"$FILTER\") ==="
+elif [[ $skipped -gt 0 ]]; then
+    echo "=== Results: $passed passed, $failed failed, $skipped skipped ==="
 else
     echo "=== Results: $passed passed, $failed failed ==="
 fi
