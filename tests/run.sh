@@ -909,6 +909,26 @@ EOF
 }
 test_deploy_gemini_disabled
 
+test_deploy_off_by_default() {
+    local name="deploy-off-by-default: tier 3 does not run without --check-deploy"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    # Run against standalone-plugin (which has a claude plugin.json) without
+    # --check-deploy. Should NOT produce any "Checking deployment" output.
+    local output
+    output=$("$VALIDATE" --skip "$SKIP_EXTERNAL" "$FIXTURES/standalone-plugin" 2>&1)
+    if echo "$output" | grep -q "Checking deployment"; then
+        echo "FAIL: $name (deployment checks ran without --check-deploy)" >&2
+        failed=$((failed + 1))
+    else
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    fi
+}
+test_deploy_off_by_default
+
 # --- Meta-tests: consistency and traceability ---
 
 # Test 1: Ref-comment line accuracy
