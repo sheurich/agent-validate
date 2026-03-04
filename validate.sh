@@ -458,8 +458,8 @@ if ! should_skip "crosscheck"; then
             ge_description=$(jq -r '.description // empty' "$gemini_json")
 
             # Gemini extension name format: lowercase alphanumeric with dashes
-            # Ref: gemini-extension-reference.md L129-L134 (name constraints)
-            # Ref: gemini-extension-config.ts L31-L32 (name: string, required)
+            # Ref: gemini-extension-reference.md L132-L138 (name constraints)
+            # Ref: gemini-extension-config.ts L24-L25 (name: string, required)
             if [[ -n "$ge_name" ]] && ! echo "$ge_name" | grep -qE '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
                 echo "Error: gemini-extension.json name '$ge_name' must be lowercase alphanumeric with dashes" >&2
                 errors=$((errors + 1))
@@ -517,8 +517,8 @@ if ! should_skip "crosscheck"; then
     fi
 
     # Gemini contextFileName file resolution (handles string or string[])
-    # Ref: gemini-extension-reference.md L150-L153 (contextFileName semantics)
-    # Ref: gemini-extension-config.ts L35 (contextFileName?: string | string[])
+    # Ref: gemini-extension-reference.md L153-L157 (contextFileName semantics)
+    # Ref: gemini-extension-config.ts L28 (contextFileName?: string | string[])
     if [[ -f "$gemini_json" ]]; then
         info "=== Checking Gemini extension context files ==="
         ctx_type=$(jq -r '.contextFileName | type' "$gemini_json")

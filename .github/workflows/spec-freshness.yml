@@ -21,7 +21,7 @@ permissions:
 env:
   # Pin to the commit matching vendored specs. Update after re-vendoring.
   AGENTSKILLS_SHA: "f019a02dbbb1302217c4b4a14557d6384d9ace9a"
-  GEMINI_CLI_SHA: "b0ceb7446211ebba8ee0f6518a64ef2c4a5019a9"
+  GEMINI_CLI_SHA: "e63d273e4e242caff6ee6fdc1b87b0b2c8d12443"
   PI_MONO_SHA: "40a8706bb9767d314db2ff137697cdc9fb4eb82a"
   REFS_DIR: skills/spec-conformance/references
 
