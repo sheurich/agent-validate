@@ -1,0 +1,225 @@
+# Spec Freshness Check
+#
+# Compares vendored specification files against their upstream sources.
+# Runs weekly and on demand. Opens GitHub issues when drift is detected.
+#
+# SHA pins for upstream repos are stored in the env block below.
+# Update them after each successful sync to track a known-good commit.
+---
+
+name: Spec Freshness
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Monday 9 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  # Pin to the commit matching vendored specs. Update after re-vendoring.
+  AGENTSKILLS_SHA: "f019a02dbbb1302217c4b4a14557d6384d9ace9a"
+  GEMINI_CLI_SHA: "b0ceb7446211ebba8ee0f6518a64ef2c4a5019a9"
+  PI_MONO_SHA: "40a8706bb9767d314db2ff137697cdc9fb4eb82a"
+  REFS_DIR: skills/spec-conformance/references
+
+jobs:
+  check-freshness:
+    name: Check vendored specs against upstream
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Verify tools
+        run: |
+          set -euo pipefail
+          echo "curl:   $(curl --version | head -1)"
+          echo "jq:     $(jq --version)"
+          echo "shasum: $(shasum --version 2>/dev/null || sha256sum --version 2>/dev/null | head -1)"
+          echo "gh:     $(gh --version | head -1)"
+
+      - name: Check specs for drift
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # --- helpers --------------------------------------------------------
+
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "$tmp_dir"' EXIT
+
+          # Tracks which platforms drifted. Values are newline-separated
+          # "<platform>|<spec-name>|<summary>" strings.
+          declare -a drifted=()
+
+          # fetch_upstream URL LOCAL_FILE LABEL PLATFORM
+          #   Downloads URL to a temp file, diffs against LOCAL_FILE.
+          #   Appends to `drifted` on mismatch. Continues on HTTP errors.
+          fetch_and_diff() {
+            local url="$1"
+            local local_file="$2"
+            local label="$3"
+            local platform="$4"
+            local tmp_file="${tmp_dir}/${label}"
+
+            echo "::group::${label}"
+            echo "  Upstream : ${url}"
+            echo "  Vendored : ${local_file}"
+
+            if ! curl --fail --silent --show-error --location -o "$tmp_file" "$url"; then
+              echo "::warning::Failed to fetch upstream for ${label} — skipping"
+              echo "::endgroup::"
+              return 0
+            fi
+
+            if ! [ -f "$local_file" ]; then
+              echo "::warning::Vendored file missing: ${local_file} — treating as drift"
+              drifted+=("${platform}|${label}|Vendored file missing: \`${local_file}\`")
+              echo "::endgroup::"
+              return 0
+            fi
+
+            # Compare by SHA-256 hash (content-only, ignores metadata).
+            local hash_upstream hash_local
+            hash_upstream="$(sha256sum "$tmp_file"   | awk '{print $1}')"
+            hash_local="$(sha256sum "$local_file" | awk '{print $1}')"
+
+            if [ "$hash_upstream" = "$hash_local" ]; then
+              echo "  ✅ No drift detected"
+            else
+              echo "  ❌ Drift detected"
+              # Produce a compact diff summary (first 40 lines).
+              local diff_summary
+              diff_summary="$(diff --unified=3 "$local_file" "$tmp_file" | head -40 || true)"
+              drifted+=("${platform}|${label}|${diff_summary}")
+            fi
+
+            echo "::endgroup::"
+          }
+
+          # --- spec checks ----------------------------------------------------
+
+          GH_RAW="https://raw.githubusercontent.com"
+
+          # 1. Agent Skills specification
+          fetch_and_diff \
+            "${GH_RAW}/agentskills/agentskills/${AGENTSKILLS_SHA}/docs/specification.mdx" \
+            "${REFS_DIR}/agentskills-specification.mdx" \
+            "agentskills-specification.mdx" \
+            "agentskills"
+
+          # 2. Claude plugins-reference (closed source — hash only)
+          fetch_and_diff \
+            "https://code.claude.com/docs/en/plugins-reference.md" \
+            "${REFS_DIR}/claude-plugins-reference.md" \
+            "claude-plugins-reference.md" \
+            "claude"
+
+          # 3. Claude plugin-marketplaces (closed source — hash only)
+          fetch_and_diff \
+            "https://code.claude.com/docs/en/plugin-marketplaces.md" \
+            "${REFS_DIR}/claude-plugin-marketplaces.md" \
+            "claude-plugin-marketplaces.md" \
+            "claude"
+
+          # 4. Gemini CLI extension reference
+          GEMINI_BASE="${GH_RAW}/google-gemini/gemini-cli/${GEMINI_CLI_SHA}"
+          fetch_and_diff \
+            "${GEMINI_BASE}/docs/extensions/reference.md" \
+            "${REFS_DIR}/gemini-extension-reference.md" \
+            "gemini-extension-reference.md" \
+            "gemini"
+
+          # 5. Gemini CLI extension config.ts
+          fetch_and_diff \
+            "${GEMINI_BASE}/packages/cli/src/config/extension.ts" \
+            "${REFS_DIR}/gemini-extension-config.ts" \
+            "gemini-extension-config.ts" \
+            "gemini"
+
+          # 6. Pi README
+          fetch_and_diff \
+            "${GH_RAW}/badlogic/pi-mono/${PI_MONO_SHA}/packages/coding-agent/README.md" \
+            "${REFS_DIR}/pi-readme.md" \
+            "pi-readme.md" \
+            "pi"
+
+          # --- report results -------------------------------------------------
+
+          if [ "${#drifted[@]}" -eq 0 ]; then
+            echo ""
+            echo "========================================="
+            echo "  ✅ All vendored specs are up to date."
+            echo "========================================="
+            exit 0
+          fi
+
+          echo ""
+          echo "========================================="
+          echo "  ❌ Drift detected in ${#drifted[@]} spec(s)."
+          echo "========================================="
+
+          # Collect unique platforms that drifted.
+          declare -A platform_bodies
+
+          for entry in "${drifted[@]}"; do
+            IFS='|' read -r platform label summary <<< "$entry"
+            platform_bodies["$platform"]+="### ${label}
+
+          \`\`\`diff
+          ${summary}
+          \`\`\`
+
+          "
+          done
+
+          # For each platform with drift, open an issue if one isn't already open.
+          for platform in "${!platform_bodies[@]}"; do
+            echo "::group::Issue for platform: ${platform}"
+
+            # Search for an existing open issue with both labels.
+            existing="$(gh issue list \
+              --label "spec-drift" \
+              --label "${platform}" \
+              --state open \
+              --limit 1 \
+              --json number \
+              --jq '.[0].number // empty' 2>/dev/null || true)"
+
+            if [ -n "$existing" ]; then
+              echo "  Open issue already exists: #${existing} — skipping creation"
+              echo "::endgroup::"
+              continue
+            fi
+
+            repo_url="${{ github.server_url }}/${{ github.repository }}"
+            wf_url="${repo_url}/actions/workflows/spec-freshness.yml"
+            title="Spec drift detected: ${platform}"
+            body="## Spec Freshness Check — ${platform}
+
+          The weekly freshness check found differences between vendored reference
+          specs and their upstream sources for **${platform}**.
+
+          ${platform_bodies[$platform]}
+          ---
+
+          **Action required:** review the upstream changes, update the vendored
+          copies if appropriate, and close this issue.
+
+          *Opened automatically by the [spec-freshness](${wf_url}) workflow.*"
+
+            echo "Creating issue: ${title}"
+            gh issue create \
+              --title "$title" \
+              --body "$body" \
+              --label "spec-drift" \
+              --label "${platform}" \
+            || echo "::warning::Failed to create issue for ${platform}"
+
+            echo "::endgroup::"
+          done

@@ -39,6 +39,8 @@ jobs:
           yamllint -c defaults/.yamllint.yml
           defaults/.yamllint.yml action.yml
           .github/workflows/self-validate.yml
+          .github/workflows/spec-freshness.yml
+          .github/workflows/cli-regression.yml
           .github/dependabot.yml
 
       - name: Lint JSON
@@ -51,6 +53,10 @@ jobs:
           --ignore 'tests/fixtures/**'
           --ignore 'skills/spec-conformance/references/**'
           --config defaults/.markdownlint.json
+
+      - name: Lint GitHub Actions workflows
+        if: runner.os == 'Linux'
+        uses: rhysd/actionlint@393031adb9afb225ee52ae2ccd7a5af5525e03e8  # v1.7.11
 
       - name: Run test suite
         run: ./tests/run.sh

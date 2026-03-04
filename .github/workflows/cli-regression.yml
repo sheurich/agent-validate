@@ -1,0 +1,168 @@
+---
+# Fixture-based regression tests for platform CLI validators.
+#
+# Runs each platform's CLI validator against known-good and known-bad
+# fixtures, verifying that exit codes match expectations. This catches
+# upstream CLI behavior changes that could silently break validate.sh.
+
+name: cli-regression
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  cli-regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Gemini CLI excluded: no standalone `extensions validate` subcommand
+        # yet. See TODO below.
+        platform: [claude, skills-ref]
+    runs-on: ubuntu-latest
+    name: cli-regression (${{ matrix.platform }})
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238  # v6.2.0
+        with:
+          node-version: "22"
+
+      - name: Run fixture tests — ${{ matrix.platform }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pass=0
+          fail=0
+          errors=()
+
+          # Run a single test case.
+          #   $1  human-readable label
+          #   $2  expected outcome: "pass" (exit 0) or "fail" (exit non-zero)
+          #   $3+ command and arguments
+          run_case() {
+            local label="$1" expect="$2"
+            shift 2
+
+            local rc=0
+            "$@" > /dev/null 2>&1 || rc=$?
+
+            if [[ "$expect" == "pass" && "$rc" -eq 0 ]]; then
+              echo "✅ PASS  $label (exit $rc)"
+              pass=$((pass + 1))
+            elif [[ "$expect" == "fail" && "$rc" -ne 0 ]]; then
+              echo "✅ PASS  $label (exit $rc, expected non-zero)"
+              pass=$((pass + 1))
+            else
+              echo "❌ FAIL  $label (exit $rc, expected $expect)"
+              errors+=("$label")
+              fail=$((fail + 1))
+            fi
+          }
+
+          # ── Claude Code: claude plugin validate ──────────────────────
+          if [[ "${{ matrix.platform }}" == "claude" ]]; then
+            claude_validate() {
+              npx --yes "@anthropic-ai/claude-code@2.1.22" plugin validate "$@"
+            }
+
+            run_case \
+              "standalone-plugin → valid" \
+              pass \
+              claude_validate tests/fixtures/standalone-plugin
+
+            # marketplace.json source paths are relative directories; the
+            # Claude CLI currently rejects these ("Invalid input"), so this
+            # is expected to fail even though the fixture is structurally
+            # correct for our own validator.
+            run_case \
+              "marketplace → rejected (relative source paths)" \
+              fail \
+              claude_validate tests/fixtures/marketplace
+
+            run_case \
+              "broken → invalid (bogus_field)" \
+              fail \
+              claude_validate tests/fixtures/broken
+
+          # ── Agent Skills: skills-ref validate ────────────────────────
+          elif [[ "${{ matrix.platform }}" == "skills-ref" ]]; then
+            sref_validate() {
+              npx --yes "skills-ref@0.1.5" validate "$@"
+            }
+
+            run_case \
+              "skills-only/foo → valid" \
+              pass \
+              sref_validate tests/fixtures/skills-only/skills/foo
+
+            run_case \
+              "skills-only/bar → valid" \
+              pass \
+              sref_validate tests/fixtures/skills-only/skills/bar
+
+            run_case \
+              "skill-all-fields/full-skill → valid" \
+              pass \
+              sref_validate tests/fixtures/skill-all-fields/skills/full-skill
+
+            run_case \
+              "skill-name-uppercase/Bad-Name → invalid (uppercase)" \
+              fail \
+              sref_validate tests/fixtures/skill-name-uppercase/skills/Bad-Name
+
+            run_case \
+              "skill-unknown-field/unknown-field → invalid (bogus field)" \
+              fail \
+              sref_validate tests/fixtures/skill-unknown-field/skills/unknown-field
+          fi
+
+          # ── Summary ──────────────────────────────────────────────────
+          echo ""
+          echo "Results: $pass passed, $fail failed"
+          if [[ "${#errors[@]}" -gt 0 ]]; then
+            echo ""
+            echo "Failures:"
+            for e in "${errors[@]}"; do
+              echo "  - $e"
+            done
+            exit 1
+          fi
+
+  # ── Gemini CLI ─────────────────────────────────────────────────────
+  # TODO: Add Gemini CLI regression tests once `gemini extensions validate`
+  # works as a standalone subcommand. Tracked upstream; uncomment when
+  # available.
+  #
+  # gemini-cli-regression:
+  #   runs-on: ubuntu-latest
+  #   # Gemini CLI has no working `extensions validate` subcommand yet.
+  #   # Keep this job visible but non-blocking.
+  #   continue-on-error: true
+  #   steps:
+  #     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+  #
+  #     - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238  # v6.2.0
+  #       with:
+  #         node-version: "22"
+  #
+  #     - name: Run fixture tests — gemini
+  #       shell: bash
+  #       run: |
+  #         set -euo pipefail
+  #         GEMINI="npx --yes @google/gemini-cli"
+  #
+  #         # Example cases (adjust once the subcommand exists):
+  #         # $GEMINI extensions validate tests/fixtures/standalone-plugin
+  #         # $GEMINI extensions validate tests/fixtures/gemini-valid-ctx
+  #         # $GEMINI extensions validate tests/fixtures/gemini-broken-ctx
+  #
+  #         echo "⏭️  Gemini CLI extensions validate not yet available"
+  #         exit 1

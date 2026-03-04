@@ -140,3 +140,51 @@ Vendored reference documents are in `references/`. To update:
 4. Update validate.sh if the spec changed
 5. Update "Last verified" dates
 6. Add/remove items from "Known Drift"
+
+## Adding a New Platform
+
+When adding validation support for a new platform, complete every item:
+
+### 1. Vendor the spec
+
+- [ ] Identify the authoritative source(s): CLI validator > source code > docs
+- [ ] Download the spec to `references/<platform>-<docname>.<ext>`
+- [ ] Record the source URL, trust tier, and retrieval date
+
+### 2. Add SKILL.md section
+
+- [ ] Add a "### Platform Name" section under "Platform Specs" above
+- [ ] Include: source URL, vendored path, last-verified date
+- [ ] Document what validate.sh checks vs. what the spec requires
+- [ ] Note any field allowlists, name constraints, or behavioral quirks
+
+### 3. Add validation logic
+
+- [ ] Add platform detection in validate.sh (file-presence based)
+- [ ] Add a `--skip <platform>` value and document it in `usage()`
+- [ ] Add `# Ref:` comments citing vendored reference file and line ranges
+- [ ] Handle malformed input gracefully (error message, not crash)
+
+### 4. Create test fixtures
+
+- [ ] Create `tests/fixtures/<platform>-valid/` with a minimal passing case
+- [ ] Create `tests/fixtures/<platform>-broken/` with at least one failing case
+- [ ] Add `assert_pass` / `assert_fail` / `assert_fail_stderr` entries in `tests/run.sh`
+
+### 5. Wire into freshness check
+
+- [ ] Add fetch-and-diff entry in `.github/workflows/spec-freshness.yml`
+- [ ] For open-source repos: add SHA pin env var (e.g., `NEW_PLATFORM_SHA`)
+- [ ] For closed-source docs: hash-based comparison is automatic
+
+### 6. Wire into CLI regression (if applicable)
+
+- [ ] If the platform has a CLI validator, add a matrix entry in `.github/workflows/cli-regression.yml`
+- [ ] Add pass/fail fixture cases for the CLI validator
+- [ ] If no CLI validator exists, note this in the SKILL.md section
+
+### 7. Update supporting files
+
+- [ ] Add the new `--skip` value to `action.yml` documentation (if visible to consumers)
+- [ ] Update `.github/copilot-instructions.md` review checklist
+- [ ] Update cross-check logic if the platform shares metadata fields with others
