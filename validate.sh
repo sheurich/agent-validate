@@ -344,6 +344,7 @@ if ! should_skip "pi"; then
         info "=== Validating Pi package ==="
 
         # Verify package.json pi paths resolve
+        # Ref: pi-readme.md L361-L370 (pi key in package.json: extensions, skills, prompts, themes)
         if [[ -f "package.json" ]] && jq -e '.pi' "package.json" >/dev/null 2>&1; then
             while IFS= read -r pi_path; do
                 [[ -z "$pi_path" || "$pi_path" == "null" ]] && continue
@@ -355,6 +356,7 @@ if ! should_skip "pi"; then
         fi
 
         # Check for pi-package keyword (discovery convention)
+        # Ref: pi-readme.md L363 (keywords: ["pi-package"])
         if [[ -f "package.json" ]]; then
             has_pi_keyword=$(jq -r '.keywords // [] | map(select(. == "pi-package")) | length' "package.json")
             if [[ "$has_pi_keyword" == "0" ]]; then
@@ -420,6 +422,7 @@ if ! should_skip "crosscheck"; then
     pkg_json="package.json"
 
     # Field allowlist for plugin.json (used by root and sub-plugin checks)
+    # Ref: claude-plugins-reference.md L296-L340 (required + metadata + component path fields)
     # Metadata fields: name, description, version, author, keywords, license, repository, homepage
     # Component path fields: commands, agents, skills, hooks, mcpServers, outputStyles, lspServers
     allowed_fields='["name","description","version","author","keywords","license","repository","homepage","commands","agents","skills","hooks","mcpServers","outputStyles","lspServers"]'
@@ -434,6 +437,7 @@ if ! should_skip "crosscheck"; then
             pj_description=$(jq -r '.description // empty' "$plugin_json")
 
             # Field allowlist (structural check, no CLI needed)
+            # Ref: claude-plugins-reference.md L296-L340 (full allowlist)
             bad_fields=$(jq -r --argjson allowed "$allowed_fields" \
                 '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
                 "$plugin_json")
@@ -454,6 +458,8 @@ if ! should_skip "crosscheck"; then
             ge_description=$(jq -r '.description // empty' "$gemini_json")
 
             # Gemini extension name format: lowercase alphanumeric with dashes
+            # Ref: gemini-extension-reference.md L129-L134 (name constraints)
+            # Ref: gemini-extension-config.ts L31-L32 (name: string, required)
             if [[ -n "$ge_name" ]] && ! echo "$ge_name" | grep -qE '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
                 echo "Error: gemini-extension.json name '$ge_name' must be lowercase alphanumeric with dashes" >&2
                 errors=$((errors + 1))
@@ -468,6 +474,7 @@ if ! should_skip "crosscheck"; then
     fi
 
     # Compare plugin.json ↔ gemini-extension.json
+    # Ref: claude-plugins-reference.md L274-L276, gemini-extension-reference.md L114-L116
     if [[ -n "$pj_name" && -n "$ge_name" && "$pj_name" != "$ge_name" ]]; then
         echo "Error: Name mismatch: plugin.json='$pj_name' gemini-extension.json='$ge_name'" >&2
         errors=$((errors + 1))
@@ -510,6 +517,8 @@ if ! should_skip "crosscheck"; then
     fi
 
     # Gemini contextFileName file resolution (handles string or string[])
+    # Ref: gemini-extension-reference.md L150-L153 (contextFileName semantics)
+    # Ref: gemini-extension-config.ts L35 (contextFileName?: string | string[])
     if [[ -f "$gemini_json" ]]; then
         info "=== Checking Gemini extension context files ==="
         ctx_type=$(jq -r '.contextFileName | type' "$gemini_json")
@@ -541,26 +550,31 @@ if ! should_skip "crosscheck"; then
     fi
 
     # Marketplace top-level validation
+    # Ref: claude-plugin-marketplaces.md L152-L157 (required fields: name, owner, plugins)
     if [[ -f "$marketplace" ]]; then
         info "=== Validating marketplace.json structure ==="
         # Required: name
+        # Ref: claude-plugin-marketplaces.md L155 (name field)
         mp_top_name=$(jq -r '.name // empty' "$marketplace")
         if [[ -z "$mp_top_name" ]]; then
             echo "Error: marketplace.json missing required name field" >&2
             errors=$((errors + 1))
         fi
         # Required: owner.name
+        # Ref: claude-plugin-marketplaces.md L156,L167 (owner.name required)
         mp_owner_name=$(jq -r '.owner.name // empty' "$marketplace")
         if [[ -z "$mp_owner_name" ]]; then
             echo "Error: marketplace.json missing required owner.name field" >&2
             errors=$((errors + 1))
         fi
         # Required: plugins array
+        # Ref: claude-plugin-marketplaces.md L157 (plugins array required)
         if ! jq -e '.plugins | type == "array"' "$marketplace" >/dev/null 2>&1; then
             echo "Error: marketplace.json missing required plugins array" >&2
             errors=$((errors + 1))
         fi
         # Validate source paths resolve (relative paths only)
+        # Ref: claude-plugin-marketplaces.md L109-L111 (plugins can't reference files outside dir)
         mp_src_count=$(jq -e -r '.plugins | length' "$marketplace" 2>/dev/null) || mp_src_count=0
         for ((i = 0; i < mp_src_count; i++)); do
             mp_src=$(jq -r ".plugins[$i].source" "$marketplace")
@@ -709,6 +723,7 @@ if ! should_skip "skills"; then
     done < <(find -P . -path "*/plugins/*/skills" -type d -print0 2>/dev/null)
 
     # Allowed frontmatter fields (Agent Skills spec)
+    # Ref: agentskills-specification.mdx L49-L54 (frontmatter field table)
     allowed_fm_fields="name description license allowed-tools metadata compatibility"
     # Known agent-specific extensions (warning, not error)
     known_extensions="user-invocable argument-hint"
@@ -723,6 +738,7 @@ if ! should_skip "skills"; then
             frontmatter=$(awk '/^---$/{if(++c==2)exit; next} c==1{print}' "$skill_file")
 
             # --- name: required ---
+            # Ref: agentskills-specification.mdx L49 (name: required)
             fm_name=$(echo "$frontmatter" | awk '/^name:/{sub(/^name:[[:space:]]*/, ""); print; exit}')
             if [[ -z "$fm_name" ]]; then
                 echo "Error: No frontmatter 'name' in $skill_file" >&2
@@ -731,30 +747,35 @@ if ! should_skip "skills"; then
             fi
 
             # Name format: max 64 chars
+            # Ref: agentskills-specification.mdx L49,L59 (max 64 characters)
             if [[ ${#fm_name} -gt 64 ]]; then
                 echo "Error: Skill name '$fm_name' exceeds 64-char limit (${#fm_name} chars) in $skill_file" >&2
                 errors=$((errors + 1))
             fi
 
             # Name format: lowercase alnum + hyphens only
+            # Ref: agentskills-specification.mdx L49,L60 (lowercase alphanumeric + hyphens)
             if ! echo "$fm_name" | grep -qE '^[a-z0-9-]+$'; then
                 echo "Error: Skill name '$fm_name' contains invalid characters (must be lowercase alphanumeric + hyphens) in $skill_file" >&2
                 errors=$((errors + 1))
             fi
 
             # Name format: no leading/trailing hyphens
+            # Ref: agentskills-specification.mdx L61 (must not start or end with -)
             if [[ "$fm_name" == -* || "$fm_name" == *- ]]; then
                 echo "Error: Skill name '$fm_name' must not start or end with a hyphen in $skill_file" >&2
                 errors=$((errors + 1))
             fi
 
             # Name format: no consecutive hyphens
+            # Ref: agentskills-specification.mdx L62 (must not contain consecutive hyphens)
             if [[ "$fm_name" == *--* ]]; then
                 echo "Error: Skill name '$fm_name' must not contain consecutive hyphens in $skill_file" >&2
                 errors=$((errors + 1))
             fi
 
             # Name must match folder (configurable via skip)
+            # Ref: agentskills-specification.mdx L63 (must match parent directory name)
             if ! should_skip "skill-name-match" && [[ "$fm_name" != "$folder_name" ]]; then
                 # Promoted SKILL.md (sitting in a category dir) gets warning, not error
                 grandparent=$(basename "$(dirname "$skill_dir")")
@@ -767,6 +788,7 @@ if ! should_skip "skills"; then
             fi
 
             # --- description: required, non-empty, max 1024 chars ---
+            # Ref: agentskills-specification.mdx L50 (max 1024 chars, non-empty)
             fm_desc=$(echo "$frontmatter" | awk '/^description:/{sub(/^description:[[:space:]]*/, ""); print; exit}')
             if [[ -z "$fm_desc" ]]; then
                 echo "Error: No frontmatter 'description' (or empty value) in $skill_file" >&2
@@ -777,6 +799,7 @@ if ! should_skip "skills"; then
             fi
 
             # --- compatibility: max 500 chars if present ---
+            # Ref: agentskills-specification.mdx L52 (max 500 characters)
             fm_compat=$(echo "$frontmatter" | awk '/^compatibility:/{sub(/^compatibility:[[:space:]]*/, ""); print; exit}')
             if [[ -n "$fm_compat" && ${#fm_compat} -gt 500 ]]; then
                 echo "Error: Compatibility exceeds 500-char limit (${#fm_compat} chars) in $skill_file" >&2
@@ -784,6 +807,7 @@ if ! should_skip "skills"; then
             fi
 
             # --- Frontmatter field allowlist ---
+            # Ref: agentskills-specification.mdx L49-L54 (only specified fields permitted)
             while IFS= read -r field_name; do
                 [[ -z "$field_name" ]] && continue
                 # Check against spec allowlist

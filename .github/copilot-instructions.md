@@ -11,12 +11,20 @@ When reviewing changes to `validate.sh`, `action.yml`, or test fixtures in this 
 - **Bundled defaults**: `defaults/.yamllint.yml` and `defaults/.markdownlint.json` are used unless the target repo provides its own config
 - **System-first tool detection**: yamllint and ruff prefer system-installed versions before falling back to `uvx`
 - **Action tool install**: ruff is pip-installed in the action (no uvx dependency in CI)
+- **Spec traceability**: validation checks in validate.sh cite `# Ref:` comments pointing to vendored reference file and line ranges
+
+## CI Workflows
+
+- **self-validate.yml**: Lints this repo and runs the test suite on push/PR
+- **spec-freshness.yml**: Weekly check comparing vendored specs against upstream sources; opens GitHub issues on drift
+- **cli-regression.yml**: Runs platform CLI validators (`claude plugin validate`, `skills-ref validate`) against test fixtures on push/PR
 
 ## Review Checklist
 
 For changes to validation logic:
 
 - Does the allowlist in `validate.sh` match what the upstream spec documents?
+- Does the new check include a `# Ref:` comment citing the vendored reference file and line range?
 - Are new fields tested (both accept and reject)?
 - Do error messages include the file and field that failed?
 - Are marketplace sub-plugin checks consistent with root-level checks?
@@ -32,6 +40,13 @@ For test changes:
 - Does every new validation check have both a pass and fail test?
 - Do `assert_fail_stderr` patterns match the actual error messages in validate.sh?
 - Are fixture JSON files valid (run `jq . <file>` to verify)?
+
+For spec updates:
+
+- Is the vendored copy updated in `references/`?
+- Are `# Ref:` line numbers in validate.sh still accurate after the update?
+- Is the freshness check SHA pin updated in `spec-freshness.yml`?
+- Is the "Last verified" date updated in `skills/spec-conformance/SKILL.md`?
 
 ## Known Remaining Drift
 
