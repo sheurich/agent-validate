@@ -838,6 +838,42 @@ EOF
 }
 test_deploy_skills_hub_missing
 
+test_deploy_claude_missing() {
+    local name="deploy-claude-missing: detects missing plugin"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Stub claude that returns empty lists
+    cat > "$tmpdir/claude" << 'STUBEOF'
+#!/usr/bin/env bash
+echo '[]'
+STUBEOF
+    chmod +x "$tmpdir/claude"
+
+    # Fixture with a plugin that won't be in the list
+    mkdir -p "$tmpdir/fix/.claude-plugin"
+    echo '{"name":"ghost-plugin","version":"1.0.0"}' \
+        > "$tmpdir/fix/.claude-plugin/plugin.json"
+
+    local stderr_output
+    stderr_output=$(PATH="$tmpdir:$PATH" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir/fix" 2>&1 >/dev/null) || true
+    if echo "$stderr_output" | grep -q "ghost-plugin.*not installed"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (missing expected error)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_claude_missing
+
 # --- Meta-tests: consistency and traceability ---
 
 # Test 1: Ref-comment line accuracy
