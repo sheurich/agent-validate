@@ -209,7 +209,7 @@ if ! should_skip "json"; then
     json_files=()
     while IFS= read -r -d '' f; do
         json_files+=("$f")
-    done < <(find -P . -name "*.json" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -print0)
+    done < <(find -P . -name "*.json" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -not -path "./vendor/*" -print0)
     if [[ ${#json_files[@]} -gt 0 ]]; then
         printf '%s\0' "${json_files[@]}" | xargs -0 -n1 npx --yes "jsonlint-mod@${JSONLINT_VERSION}" -q || errors=$((errors + 1))
     else
@@ -222,7 +222,7 @@ if ! should_skip "yaml"; then
     yaml_files=()
     while IFS= read -r -d '' f; do
         yaml_files+=("$f")
-    done < <(find -P . \( -name "*.yml" -o -name "*.yaml" \) -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -print0)
+    done < <(find -P . \( -name "*.yml" -o -name "*.yaml" \) -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -not -path "./vendor/*" -print0)
     if [[ ${#yaml_files[@]} -gt 0 ]]; then
         # Use system yamllint if available (e.g. pip install in CI), otherwise uvx
         yamllint_cmd=(uvx "yamllint@${YAMLLINT_VERSION}")
@@ -251,7 +251,7 @@ if ! should_skip "shell"; then
         shell_files=()
         while IFS= read -r -d '' f; do
             shell_files+=("$f")
-        done < <(find -P . -name "*.sh" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -print0)
+        done < <(find -P . -name "*.sh" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "./vendor/*" -print0)
         if [[ ${#shell_files[@]} -gt 0 ]]; then
             printf '%s\0' "${shell_files[@]}" | xargs -0 shellcheck || errors=$((errors + 1))
         else
@@ -265,7 +265,7 @@ if ! should_skip "python"; then
     py_files=()
     while IFS= read -r -d '' f; do
         py_files+=("$f")
-    done < <(find -P . -name "*.py" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -print0)
+    done < <(find -P . -name "*.py" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -not -path "./vendor/*" -print0)
     if [[ ${#py_files[@]} -gt 0 ]]; then
         # Use system ruff if available, otherwise uvx
         ruff_cmd=(uvx "ruff@${RUFF_VERSION}")
@@ -366,7 +366,7 @@ if ! should_skip "pi"; then
         ts_files=()
         while IFS= read -r -d '' f; do
             ts_files+=("$f")
-        done < <(find -P . -path "./extensions/*.ts" -not -path "./node_modules/*" -print0 2>/dev/null)
+        done < <(find -P . -path "./extensions/*.ts" -not -path "./node_modules/*" -not -path "./vendor/*" -print0 2>/dev/null)
         if [[ ${#ts_files[@]} -gt 0 ]]; then
             if command -v npx >/dev/null 2>&1; then
                 info "Checking TypeScript syntax in extensions/"

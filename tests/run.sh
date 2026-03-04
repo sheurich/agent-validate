@@ -560,6 +560,40 @@ test_missing_jq() {
 }
 test_missing_jq
 
+# --- Vendor directory exclusion ---
+
+test_vendor_exclusion() {
+    local name="vendor-exclusion: vendor/ contents are excluded from all linters"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Create a valid top-level file so linters have something to scan
+    echo '{"valid": true}' > "$tmpdir/good.json"
+
+    # Create vendor/ with intentionally broken files
+    mkdir -p "$tmpdir/vendor"
+    echo '{"trailing-comma": true,}' > "$tmpdir/vendor/bad.json"
+    printf 'key: value\n  indented_wrong: true\n' > "$tmpdir/vendor/bad.yml"
+    # Literal $UNQUOTED_VAR is intentional — this is a shellcheck test fixture
+    # shellcheck disable=SC2016
+    printf '#!/usr/bin/env bash\necho $UNQUOTED_VAR\n' > "$tmpdir/vendor/bad.sh"
+    printf 'import os\nx = [1,2,3\n' > "$tmpdir/vendor/bad.py"
+
+    if "$VALIDATE" --skip "markdown,claude,gemini,pi,codex,opencode,crosscheck,skills" "$tmpdir" >/dev/null 2>&1; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (expected pass, vendor/ should be excluded)" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_vendor_exclusion
+
 echo ""
 if [[ -n "$FILTER" ]]; then
     echo "=== Results: $passed passed, $failed failed, $skipped skipped (filter: \"$FILTER\") ==="
