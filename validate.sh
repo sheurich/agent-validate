@@ -29,6 +29,7 @@ Options:
   --skip CHECKS   Comma-separated checks to skip (repeatable)
   --verbose       Show detailed output
   --quiet         Show only errors and summary
+  --check-deploy  Verify installed state matches repo manifests (Tier 3)
   --version       Show version number
   -h, --help      Show this help message
 
@@ -69,6 +70,7 @@ SKIP_CHECKS=""
 TARGET_DIR=""
 VERBOSE=false
 QUIET=false
+CHECK_DEPLOY=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -86,6 +88,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --quiet)
             QUIET=true
+            shift
+            ;;
+        --check-deploy)
+            CHECK_DEPLOY=true
             shift
             ;;
         --skip)

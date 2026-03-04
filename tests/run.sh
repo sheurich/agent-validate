@@ -647,6 +647,26 @@ test_vendor_exclusion() {
 }
 test_vendor_exclusion
 
+# --- Tier 3: --check-deploy flag ---
+
+test_check_deploy_flag() {
+    local name="--check-deploy flag is accepted"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    # --check-deploy on empty-dir should pass (no platforms detected)
+    if "$VALIDATE" --check-deploy "$FIXTURES/empty-dir" \
+        --skip "$SKIP_EXTERNAL" >/dev/null 2>&1; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (expected exit 0)" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_check_deploy_flag
+
 # --- Meta-tests: consistency and traceability ---
 
 # Test 1: Ref-comment line accuracy
