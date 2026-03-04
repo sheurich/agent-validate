@@ -874,6 +874,41 @@ STUBEOF
 }
 test_deploy_claude_missing
 
+test_deploy_gemini_disabled() {
+    local name="deploy-gemini-disabled: detects disabled extension"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Stub gemini that returns a disabled extension
+    cat > "$tmpdir/gemini" << 'STUBEOF'
+#!/usr/bin/env bash
+echo '[{"name":"disabled-ext","version":"1.0.0","isActive":false}]'
+STUBEOF
+    chmod +x "$tmpdir/gemini"
+
+    cat > "$tmpdir/gemini-extension.json" << 'EOF'
+{"name":"disabled-ext","version":"1.0.0"}
+EOF
+
+    local stderr_output
+    stderr_output=$(PATH="$tmpdir:$PATH" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir" 2>&1 >/dev/null) || true
+    if echo "$stderr_output" | grep -q "disabled-ext.*disabled"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (missing expected error)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_gemini_disabled
+
 # --- Meta-tests: consistency and traceability ---
 
 # Test 1: Ref-comment line accuracy
