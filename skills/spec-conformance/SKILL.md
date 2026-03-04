@@ -89,13 +89,13 @@ Source types: relative paths, GitHub repos (`github:owner/repo`), git URLs, npm 
 ### Gemini CLI gemini-extension.json
 
 **Source:** `https://github.com/google-gemini/gemini-cli/blob/main/docs/extensions/reference.md`
-**TypeScript interface:** `https://github.com/google-gemini/gemini-cli/blob/main/packages/a2a-server/src/config/extension.ts`
+**TypeScript interface:** `https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/extension.ts`
 **Vendored:** `references/gemini-extension-reference.md`, `references/gemini-extension-config.ts`
-**Last verified:** 2026-02-26
+**Last verified:** 2026-03-04
 
-Interface fields: `name` (string, required), `version` (string, required), `mcpServers` (optional), `contextFileName` (string or string[], optional), `excludeTools` (string[], optional).
+Interface fields: `name` (string, required), `version` (string, required), `mcpServers` (optional), `contextFileName` (string or string[], optional), `excludeTools` (string[], optional), `settings` (ExtensionSetting[], optional), `themes` (CustomTheme[], optional), `plan` (object with optional `directory`, optional).
 
-Documentation also mentions: `description`, `settings` array, `themes` array.
+Documentation also mentions: `description`, policy engine (`.toml` files in `policies/` directory).
 
 `contextFileName` can be a string or array of strings. If omitted and `GEMINI.md` exists, that file is loaded. When an array, each entry is resolved independently.
 
