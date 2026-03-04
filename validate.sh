@@ -954,6 +954,35 @@ if $CHECK_DEPLOY; then
         detail "Claude CLI not found, skipping deployment check"
     fi
 
+    # Gemini CLI deployment check
+    if command -v gemini >/dev/null 2>&1; then
+        if [[ -f "gemini-extension.json" ]]; then
+            info "=== Checking deployment (Gemini CLI) ==="
+            ge_deploy_name=$(jq -r '.name // empty' "gemini-extension.json")
+            if [[ -n "$ge_deploy_name" ]]; then
+                ext_list=$(gemini extensions list -o json 2>/dev/null) \
+                    || ext_list="[]"
+                ext_match=$(echo "$ext_list" | jq -r \
+                    --arg n "$ge_deploy_name" \
+                    '[.[] | select(.name == $n)] | .[0]')
+                if [[ "$ext_match" != "null" && -n "$ext_match" ]]; then
+                    is_active=$(echo "$ext_match" | jq -r '.isActive')
+                    if [[ "$is_active" == "true" ]]; then
+                        info "  ✓ extension ${ge_deploy_name}: installed and enabled"
+                    else
+                        echo "Error: extension ${ge_deploy_name}: installed but disabled" >&2
+                        errors=$((errors + 1))
+                    fi
+                else
+                    echo "Error: extension ${ge_deploy_name}: not installed" >&2
+                    errors=$((errors + 1))
+                fi
+            fi
+        fi
+    else
+        detail "Gemini CLI not found, skipping deployment check"
+    fi
+
 fi  # CHECK_DEPLOY
 
 # --- Extra validation hook ---

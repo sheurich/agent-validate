@@ -722,6 +722,47 @@ EOF
 }
 test_deploy_claude_check
 
+test_deploy_gemini_check() {
+    local name="deploy-gemini: parses gemini extensions list JSON correctly"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Stub gemini
+    cat > "$tmpdir/gemini" << 'STUBEOF'
+#!/usr/bin/env bash
+echo '[{"name":"test-ext","version":"1.0.0","isActive":true}]'
+STUBEOF
+    chmod +x "$tmpdir/gemini"
+
+    # Fixture
+    cat > "$tmpdir/gemini-extension.json" << 'EOF'
+{"name":"test-ext","version":"1.0.0"}
+EOF
+
+    local output
+    if output=$(PATH="$tmpdir:$PATH" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir" 2>&1); then
+        if echo "$output" | grep -q "test-ext.*enabled"; then
+            echo "PASS: $name"
+            passed=$((passed + 1))
+        else
+            echo "FAIL: $name (missing expected output)" >&2
+            echo "  Got: $output" >&2
+            failed=$((failed + 1))
+        fi
+    else
+        echo "FAIL: $name (expected exit 0)" >&2
+        echo "  Got: $output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_gemini_check
+
 # --- Meta-tests: consistency and traceability ---
 
 # Test 1: Ref-comment line accuracy
