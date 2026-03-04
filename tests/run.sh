@@ -594,6 +594,229 @@ test_vendor_exclusion() {
 }
 test_vendor_exclusion
 
+# --- Meta-tests: consistency and traceability ---
+
+# Test 1: Ref-comment line accuracy
+# Every # Ref: comment in validate.sh must cite a file that exists in
+# references/ and line numbers that fall within the file's line count.
+test_ref_comment_accuracy() {
+    local name="ref-comments: cited files exist and line numbers are in range"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local refs_dir="$REPO_ROOT/skills/spec-conformance/references"
+    local errs=()
+    while IFS= read -r line; do
+        # Extract file and line spec from "# Ref: <file> L<spec>"
+        local ref_file ref_lines
+        ref_file=$(echo "$line" | sed -E 's/.*# Ref: ([^ ]+) L.*/\1/')
+        ref_lines=$(echo "$line" | sed -E 's/.*# Ref: [^ ]+ L([0-9,L-]+).*/\1/')
+
+        if [[ ! -f "$refs_dir/$ref_file" ]]; then
+            errs+=("missing file: $ref_file")
+            continue
+        fi
+
+        local total
+        total=$(wc -l < "$refs_dir/$ref_file" | tr -d ' ')
+
+        # Parse line numbers from specs like "49", "49-54", "49,L59",
+        # "L296-L340", "L156,L167"
+        local nums
+        nums=$(echo "$ref_lines" | tr ',L' '\n ' | sed 's/-/\n/g' | tr -s ' \n' '\n' | grep -E '^[0-9]+$')
+        while IFS= read -r num; do
+            [[ -z "$num" ]] && continue
+            if (( num > total )); then
+                errs+=("$ref_file L$num out of range (file has $total lines)")
+            fi
+        done <<< "$nums"
+    done < <(grep '# Ref:' "$VALIDATE" | grep -E 'L[0-9]')
+
+    if [[ ${#errs[@]} -eq 0 ]]; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name" >&2
+        for e in "${errs[@]}"; do
+            echo "  $e" >&2
+        done
+        failed=$((failed + 1))
+    fi
+}
+test_ref_comment_accuracy
+
+# Test 2: Vendored file inventory consistency
+# Every file in references/ must be cited in spec-freshness.yml and SKILL.md.
+# Every file cited in spec-freshness.yml must exist in references/.
+test_vendored_inventory() {
+    local name="vendored-inventory: references/, spec-freshness.yml, and SKILL.md agree"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local refs_dir="$REPO_ROOT/skills/spec-conformance/references"
+    local freshness="$REPO_ROOT/.github/workflows/spec-freshness.yml"
+    local skillmd="$REPO_ROOT/skills/spec-conformance/SKILL.md"
+    local errs=()
+
+    # Files on disk
+    local disk_files
+    disk_files=$(find "$refs_dir" -maxdepth 1 -type f -exec basename {} \; | sort)
+
+    # Files referenced in spec-freshness.yml (REFS_DIR}/filename patterns)
+    local freshness_files
+    freshness_files=$(grep -oE 'REFS_DIR\}/[^"]+' "$freshness" \
+        | sed 's|REFS_DIR}/||' | sort -u)
+
+    # Files referenced in SKILL.md (references/filename patterns)
+    local skillmd_files
+    skillmd_files=$(grep -oE 'references/[^ )`]+' "$skillmd" \
+        | sed 's|references/||' | sort -u)
+
+    # Check: every disk file in freshness
+    while IFS= read -r f; do
+        if ! echo "$freshness_files" | grep -qF "$f"; then
+            errs+=("$f on disk but not in spec-freshness.yml")
+        fi
+    done <<< "$disk_files"
+
+    # Check: every disk file in SKILL.md
+    while IFS= read -r f; do
+        if ! echo "$skillmd_files" | grep -qF "$f"; then
+            errs+=("$f on disk but not in SKILL.md")
+        fi
+    done <<< "$disk_files"
+
+    # Check: every freshness file on disk
+    while IFS= read -r f; do
+        [[ -z "$f" ]] && continue
+        if [[ ! -f "$refs_dir/$f" ]]; then
+            errs+=("$f in spec-freshness.yml but not on disk")
+        fi
+    done <<< "$freshness_files"
+
+    if [[ ${#errs[@]} -eq 0 ]]; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name" >&2
+        for e in "${errs[@]}"; do
+            echo "  $e" >&2
+        done
+        failed=$((failed + 1))
+    fi
+}
+test_vendored_inventory
+
+# Test 3: CLI-regression fixture paths exist
+# Every tests/fixtures/ path in cli-regression.yml must exist on disk.
+test_cli_regression_fixtures() {
+    local name="cli-regression-fixtures: all referenced fixture paths exist"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local workflow="$REPO_ROOT/.github/workflows/cli-regression.yml"
+    if [[ ! -f "$workflow" ]]; then
+        echo "SKIP: $name (cli-regression.yml not found)"
+        skipped=$((skipped + 1))
+        return
+    fi
+    local errs=()
+    while IFS= read -r fixture_path; do
+        [[ -z "$fixture_path" ]] && continue
+        if [[ ! -e "$REPO_ROOT/$fixture_path" ]]; then
+            errs+=("$fixture_path does not exist")
+        fi
+    done < <(grep -oE 'tests/fixtures/[^ "]+' "$workflow" | sort -u)
+
+    if [[ ${#errs[@]} -eq 0 ]]; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name" >&2
+        for e in "${errs[@]}"; do
+            echo "  $e" >&2
+        done
+        failed=$((failed + 1))
+    fi
+}
+test_cli_regression_fixtures
+
+# Test 4: Workflow structural validation (actionlint)
+test_actionlint() {
+    local name="actionlint: workflow files are structurally valid"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    if ! command -v actionlint >/dev/null 2>&1; then
+        echo "SKIP: $name (actionlint not installed)"
+        skipped=$((skipped + 1))
+        return
+    fi
+    local output
+    if output=$(actionlint "$REPO_ROOT/.github/workflows/"*.yml 2>&1); then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name" >&2
+        echo "$output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_actionlint
+
+# Test 5: Skip-value documentation parity
+# Values listed in usage() must match values passed to should_skip in the script.
+test_skip_parity() {
+    local name="skip-parity: usage() documents all should_skip values and vice versa"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    # Extract skip values from usage() block (indented words between
+    # "Skip values:" and the next blank line)
+    local usage_vals
+    usage_vals=$(sed -n '/^Skip values:/,/^$/p' "$VALIDATE" \
+        | grep -E '^\s+\S+' | awk '{print $1}' | sort)
+
+    # Extract skip values from should_skip calls
+    local code_vals
+    code_vals=$(grep -oE 'should_skip "[^"]+"' "$VALIDATE" \
+        | sed 's/should_skip "//;s/"//' | sort -u)
+
+    local errs=()
+    # Every usage value must appear in code
+    while IFS= read -r v; do
+        [[ -z "$v" ]] && continue
+        if ! echo "$code_vals" | grep -qxF "$v"; then
+            errs+=("'$v' in usage() but no should_skip call")
+        fi
+    done <<< "$usage_vals"
+
+    # Every code value must appear in usage
+    while IFS= read -r v; do
+        [[ -z "$v" ]] && continue
+        if ! echo "$usage_vals" | grep -qxF "$v"; then
+            errs+=("'$v' in should_skip call but not in usage()")
+        fi
+    done <<< "$code_vals"
+
+    if [[ ${#errs[@]} -eq 0 ]]; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name" >&2
+        for e in "${errs[@]}"; do
+            echo "  $e" >&2
+        done
+        failed=$((failed + 1))
+    fi
+}
+test_skip_parity
+
 echo ""
 if [[ -n "$FILTER" ]]; then
     echo "=== Results: $passed passed, $failed failed, $skipped skipped (filter: \"$FILTER\") ==="
