@@ -131,6 +131,39 @@ Pi packages should include `"keywords": ["pi-package"]` for discovery.
 
 **What validate.sh doesn't check:** File content structure or any OpenCode-specific conventions. If OpenCode publishes a spec in the future, add structural checks here.
 
+## Tier 3: Deployment Verification
+
+Deployment checks are **opt-in** via `--check-deploy`. They verify installed
+state on the host, not repo structure. Off by default — CI runners typically
+lack agent CLIs in the right state.
+
+### Claude Code
+
+Requires `claude` binary on PATH. Parses `claude plugin list --json` and
+`claude plugin marketplace list --json`. Checks:
+- Each marketplace.json name appears in registered marketplaces
+- Each plugin (root + marketplace sub-plugins) is installed and enabled
+- Plugin matching uses `.id` prefix (`name@marketplace` format)
+
+### Gemini CLI
+
+Requires `gemini` binary on PATH. Parses `gemini extensions list -o json`.
+Checks:
+- Extension name from gemini-extension.json appears in installed list
+- `.isActive` is true (not just installed)
+
+### Shared skills hub (~/.agents/skills/)
+
+No CLI needed — checks directory presence. Checks:
+- Each SKILL.md name from the repo has a matching directory under
+  `~/.agents/skills/` (or `$AGENTS_SKILLS_DIR` if set)
+
+### What deployment checks don't do
+
+- No machine-type awareness (work/personal) — consumer-repo concern
+- No content validation (do skills actually work) — domain-specific
+- No installation commands — checks state, doesn't modify it
+
 ## Known Drift
 
 No known drift. All upstream spec requirements are covered.
