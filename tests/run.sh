@@ -540,6 +540,10 @@ assert_fail_stderr "gemini-unknown-field: rejects unknown gemini-extension.json 
     "gemini-extension.json has unrecognized fields.*bogus_field" \
     "$FIXTURES/gemini-unknown-field" --skip "$SKIP_EXTERNAL"
 
+assert_fail_stderr "marketplace-gemini-bad-fields: per-plugin Gemini allowlist catches bogus fields" \
+    "gemini-extension.json has unrecognized fields.*bogus_gemini_field" \
+    "$FIXTURES/marketplace-gemini-bad-fields" --skip "$SKIP_EXTERNAL"
+
 # --- P4: Cross-check mismatch coverage (ge↔pi, pj↔pi, triple) ---
 
 assert_fail_stderr "crosscheck-ge-pi-mismatch: detects ge↔pi name mismatch" \
@@ -581,7 +585,7 @@ assert_fail_stderr "crosscheck-triple-mismatch: detects all three-way descriptio
 # --- P5: Codex/OpenCode markdown lint ---
 
 assert_fail "codex-broken-markdown: codex detects markdown lint errors in AGENTS.md" \
-    "$FIXTURES/codex-broken-markdown" --skip "json,yaml,shell,python,claude,gemini,pi,opencode,crosscheck,skills"
+    "$FIXTURES/codex-broken-markdown" --skip "json,yaml,markdown,shell,python,claude,gemini,pi,opencode,crosscheck,skills"
 
 # --- P1 #10: dependency-missing paths ---
 

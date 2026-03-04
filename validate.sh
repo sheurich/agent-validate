@@ -391,11 +391,10 @@ if ! should_skip "codex"; then
         for f in AGENTS.md codex.md; do
             if [[ -f "$f" ]]; then
                 info "Found: $f"
-                # Lint detected markdown files
-                if ! should_skip "markdown"; then
-                    npx --yes "markdownlint-cli@${MARKDOWNLINT_VERSION}" "$f" \
-                        ${markdownlint_config_args[@]+"${markdownlint_config_args[@]}"} || errors=$((errors + 1))
-                fi
+                # Lint agent instruction files (runs even when global markdown
+                # is skipped — this is a platform-specific check).
+                npx --yes "markdownlint-cli@${MARKDOWNLINT_VERSION}" "$f" \
+                    ${markdownlint_config_args[@]+"${markdownlint_config_args[@]}"} || errors=$((errors + 1))
             fi
         done
     fi
@@ -406,11 +405,10 @@ if ! should_skip "opencode"; then
     if [[ -f "AGENTS.md" ]]; then
         info "=== Detecting OpenCode agent files ==="
         info "Found: AGENTS.md"
-        # Lint detected markdown files
-        if ! should_skip "markdown"; then
-            npx --yes "markdownlint-cli@${MARKDOWNLINT_VERSION}" "AGENTS.md" \
-                ${markdownlint_config_args[@]+"${markdownlint_config_args[@]}"} || errors=$((errors + 1))
-        fi
+        # Lint agent instruction files (runs even when global markdown
+        # is skipped — this is a platform-specific check).
+        npx --yes "markdownlint-cli@${MARKDOWNLINT_VERSION}" "AGENTS.md" \
+            ${markdownlint_config_args[@]+"${markdownlint_config_args[@]}"} || errors=$((errors + 1))
     fi
 fi
 
@@ -436,6 +434,11 @@ if ! should_skip "crosscheck"; then
     # Metadata fields: name, description, version, author, keywords, license, repository, homepage
     # Component path fields: commands, agents, skills, hooks, mcpServers, outputStyles, lspServers
     allowed_fields='["name","description","version","author","keywords","license","repository","homepage","commands","agents","skills","hooks","mcpServers","outputStyles","lspServers"]'
+
+    # Field allowlist for gemini-extension.json (used by root and sub-plugin checks)
+    # Ref: gemini-extension-config.ts L24-L44 (ExtensionConfig interface fields)
+    # Ref: gemini-extension-reference.md L139 (description field, not in interface)
+    gemini_allowed_fields='["name","version","description","mcpServers","contextFileName","excludeTools","settings","themes","plan"]'
 
     if [[ -f "$plugin_json" ]]; then
         if ! jq empty "$plugin_json" 2>/dev/null; then
@@ -476,8 +479,6 @@ if ! should_skip "crosscheck"; then
             fi
 
             # Field allowlist (structural check)
-            # Ref: gemini-extension-config.ts L24-L44 (ExtensionConfig interface fields)
-            gemini_allowed_fields='["name","version","description","mcpServers","contextFileName","excludeTools","settings","themes","plan"]'
             ge_bad_fields=$(jq -r --argjson allowed "$gemini_allowed_fields" \
                 '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
                 "$gemini_json")
@@ -681,6 +682,15 @@ if ! should_skip "crosscheck"; then
                     fi
                     if [[ -n "$mp_description" && -n "$sub_ge_description" && "$mp_description" != "$sub_ge_description" ]]; then
                         echo "Error: Description mismatch for $mp_name: marketplace='$mp_description' gemini-extension.json='$sub_ge_description'" >&2
+                        errors=$((errors + 1))
+                    fi
+
+                    # Per-plugin Gemini field allowlist
+                    sub_ge_bad=$(jq -r --argjson allowed "$gemini_allowed_fields" \
+                        '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
+                        "$sub_ge")
+                    if [[ -n "$sub_ge_bad" ]]; then
+                        echo "Error: $mp_name gemini-extension.json has unrecognized fields: $sub_ge_bad" >&2
                         errors=$((errors + 1))
                     fi
                 fi

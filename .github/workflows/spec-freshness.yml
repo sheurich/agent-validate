@@ -186,11 +186,11 @@ jobs:
             gh label create "spec-drift" \
               --color "D93F0B" \
               --description "Vendored spec differs from upstream" \
-              --force 2>/dev/null || true
+              --force
             gh label create "${platform}" \
               --color "0075CA" \
               --description "Platform: ${platform}" \
-              --force 2>/dev/null || true
+              --force
 
             # Search for an existing open issue with both labels.
             existing="$(gh issue list \
