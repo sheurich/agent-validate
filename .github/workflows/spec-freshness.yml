@@ -19,9 +19,10 @@ permissions:
   issues: write
 
 env:
-  AGENTSKILLS_SHA: "main"  # TODO: pin to specific commit after first successful run
-  GEMINI_CLI_SHA: "main"   # TODO: pin to specific commit after first successful run
-  PI_MONO_SHA: "main"      # TODO: pin to specific commit after first successful run
+  # Pin to the commit matching vendored specs. Update after re-vendoring.
+  AGENTSKILLS_SHA: "f019a02dbbb1302217c4b4a14557d6384d9ace9a"
+  GEMINI_CLI_SHA: "b0ceb7446211ebba8ee0f6518a64ef2c4a5019a9"
+  PI_MONO_SHA: "40a8706bb9767d314db2ff137697cdc9fb4eb82a"
   REFS_DIR: skills/spec-conformance/references
 
 jobs:
