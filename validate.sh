@@ -872,6 +872,90 @@ if ! should_skip "skills"; then
     fi
 fi
 
+# --- Tier 3: Deployment verification ---
+
+if $CHECK_DEPLOY; then
+
+    # Claude Code deployment check
+    if command -v claude >/dev/null 2>&1; then
+        info "=== Checking deployment (Claude Code) ==="
+
+        # Check marketplace registration
+        if [[ -f ".claude-plugin/marketplace.json" ]]; then
+            mp_name_expected=$(jq -r '.name // empty' \
+                ".claude-plugin/marketplace.json")
+            if [[ -n "$mp_name_expected" ]]; then
+                mp_list=$(claude plugin marketplace list --json 2>/dev/null) \
+                    || mp_list="[]"
+                if echo "$mp_list" | jq -e \
+                    --arg n "$mp_name_expected" \
+                    '[.[] | select(.name == $n)] | length > 0' \
+                    >/dev/null 2>&1; then
+                    info "  ✓ marketplace ${mp_name_expected}: registered"
+                else
+                    echo "Error: marketplace ${mp_name_expected}: not registered" >&2
+                    errors=$((errors + 1))
+                fi
+            fi
+        fi
+
+        # Check plugin installation and enabled state
+        plugin_list=$(claude plugin list --json 2>/dev/null) || plugin_list="[]"
+
+        # Root plugin
+        if [[ -f ".claude-plugin/plugin.json" ]]; then
+            root_pj_name=$(jq -r '.name // empty' \
+                ".claude-plugin/plugin.json")
+            if [[ -n "$root_pj_name" ]]; then
+                plugin_match=$(echo "$plugin_list" | jq -r \
+                    --arg n "$root_pj_name" \
+                    '[.[] | select(.id | startswith($n + "@"))] | .[0]')
+                if [[ "$plugin_match" != "null" && -n "$plugin_match" ]]; then
+                    is_enabled=$(echo "$plugin_match" | jq -r '.enabled')
+                    if [[ "$is_enabled" == "true" ]]; then
+                        info "  ✓ plugin ${root_pj_name}: installed and enabled"
+                    else
+                        echo "Error: plugin ${root_pj_name}: installed but not enabled" >&2
+                        errors=$((errors + 1))
+                    fi
+                else
+                    echo "Error: plugin ${root_pj_name}: not installed" >&2
+                    errors=$((errors + 1))
+                fi
+            fi
+        fi
+
+        # Marketplace sub-plugins
+        if [[ -f ".claude-plugin/marketplace.json" ]]; then
+            mp_deploy_count=$(jq -e -r '.plugins | length' \
+                ".claude-plugin/marketplace.json" 2>/dev/null) \
+                || mp_deploy_count=0
+            for ((i = 0; i < mp_deploy_count; i++)); do
+                sub_name=$(jq -r ".plugins[$i].name" \
+                    ".claude-plugin/marketplace.json")
+                plugin_match=$(echo "$plugin_list" | jq -r \
+                    --arg n "$sub_name" \
+                    '[.[] | select(.id | startswith($n + "@"))] | .[0]')
+                if [[ "$plugin_match" != "null" && -n "$plugin_match" ]]; then
+                    is_enabled=$(echo "$plugin_match" | jq -r '.enabled')
+                    if [[ "$is_enabled" == "true" ]]; then
+                        info "  ✓ plugin ${sub_name}: installed and enabled"
+                    else
+                        echo "Error: plugin ${sub_name}: installed but not enabled" >&2
+                        errors=$((errors + 1))
+                    fi
+                else
+                    echo "Error: plugin ${sub_name}: not installed" >&2
+                    errors=$((errors + 1))
+                fi
+            done
+        fi
+    else
+        detail "Claude CLI not found, skipping deployment check"
+    fi
+
+fi  # CHECK_DEPLOY
+
 # --- Extra validation hook ---
 if [[ -f "scripts/validate-extra.sh" ]]; then
     info "=== Running extra validation ==="
