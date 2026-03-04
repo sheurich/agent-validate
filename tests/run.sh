@@ -763,6 +763,81 @@ EOF
 }
 test_deploy_gemini_check
 
+test_deploy_skills_hub() {
+    local name="deploy-skills-hub: checks skill directories exist"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Create fake HOME with skills hub
+    mkdir -p "$tmpdir/home/.agents/skills/my-skill"
+    mkdir -p "$tmpdir/fix/skills/my-skill"
+    cat > "$tmpdir/fix/skills/my-skill/SKILL.md" << 'EOF'
+---
+name: my-skill
+description: test skill
+---
+# My Skill
+EOF
+
+    local output
+    if output=$(HOME="$tmpdir/home" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir/fix" 2>&1); then
+        if echo "$output" | grep -q "my-skill.*found"; then
+            echo "PASS: $name"
+            passed=$((passed + 1))
+        else
+            echo "FAIL: $name (missing expected output)" >&2
+            echo "  Got: $output" >&2
+            failed=$((failed + 1))
+        fi
+    else
+        echo "FAIL: $name (expected exit 0)" >&2
+        echo "  Got: $output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_skills_hub
+
+test_deploy_skills_hub_missing() {
+    local name="deploy-skills-hub-missing: detects missing skill directory"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Create fake HOME WITHOUT skills hub entry
+    mkdir -p "$tmpdir/home/.agents/skills"
+    mkdir -p "$tmpdir/fix/skills/missing-skill"
+    cat > "$tmpdir/fix/skills/missing-skill/SKILL.md" << 'EOF'
+---
+name: missing-skill
+description: test skill
+---
+# Missing Skill
+EOF
+
+    local stderr_output
+    stderr_output=$(HOME="$tmpdir/home" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir/fix" 2>&1 >/dev/null) || true
+    if echo "$stderr_output" | grep -q "missing-skill.*not found"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (missing expected error)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_skills_hub_missing
+
 # --- Meta-tests: consistency and traceability ---
 
 # Test 1: Ref-comment line accuracy

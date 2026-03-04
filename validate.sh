@@ -983,6 +983,34 @@ if $CHECK_DEPLOY; then
         detail "Gemini CLI not found, skipping deployment check"
     fi
 
+    # Shared skills hub deployment check
+    # Checks ~/.agents/skills/ for expected skill directories.
+    # Override with AGENTS_SKILLS_DIR env var.
+    agents_skills_dir="${AGENTS_SKILLS_DIR:-${HOME}/.agents/skills}"
+    if [[ -d "$agents_skills_dir" ]]; then
+        # Collect expected skill names from SKILL.md discovery
+        deploy_skill_names=()
+        for sd in skills .agents/skills .claude/skills .opencode/skills; do
+            [[ -d "$sd" ]] || continue
+            while IFS= read -r -d '' skill_file; do
+                fm_name=$(awk '/^---$/{if(++c==2)exit; next} c==1 && /^name:/{sub(/^name:[[:space:]]*/, ""); print; exit}' "$skill_file")
+                [[ -n "$fm_name" ]] && deploy_skill_names+=("$fm_name")
+            done < <(find -P "$sd" -name "SKILL.md" -print0)
+        done
+
+        if [[ ${#deploy_skill_names[@]} -gt 0 ]]; then
+            info "=== Checking deployment (~/.agents/skills/) ==="
+            for skill_name in "${deploy_skill_names[@]}"; do
+                if [[ -d "$agents_skills_dir/$skill_name" ]]; then
+                    info "  ✓ skill ${skill_name}: found"
+                else
+                    echo "Error: skill ${skill_name}: not found in ${agents_skills_dir}/" >&2
+                    errors=$((errors + 1))
+                fi
+            done
+        fi
+    fi
+
 fi  # CHECK_DEPLOY
 
 # --- Extra validation hook ---
