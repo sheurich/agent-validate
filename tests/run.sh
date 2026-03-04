@@ -534,6 +534,55 @@ assert_fail_stderr "marketplace-malformed-subplugin: reports invalid sub-plugin 
     "is not valid JSON" \
     "$FIXTURES/marketplace-malformed-subplugin" --skip "$SKIP_EXTERNAL"
 
+# --- P3: Gemini extension field allowlist ---
+
+assert_fail_stderr "gemini-unknown-field: rejects unknown gemini-extension.json field" \
+    "gemini-extension.json has unrecognized fields.*bogus_field" \
+    "$FIXTURES/gemini-unknown-field" --skip "$SKIP_EXTERNAL"
+
+# --- P4: Cross-check mismatch coverage (ge↔pi, pj↔pi, triple) ---
+
+assert_fail_stderr "crosscheck-ge-pi-mismatch: detects ge↔pi name mismatch" \
+    "Name mismatch.*gemini-extension.json.*package.json" \
+    "$FIXTURES/crosscheck-ge-pi-mismatch" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "crosscheck-ge-pi-mismatch: detects ge↔pi version mismatch" \
+    "Version mismatch.*gemini-extension.json.*package.json" \
+    "$FIXTURES/crosscheck-ge-pi-mismatch" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "crosscheck-ge-pi-mismatch: detects ge↔pi description mismatch" \
+    "Description mismatch.*gemini-extension.json.*package.json" \
+    "$FIXTURES/crosscheck-ge-pi-mismatch" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "crosscheck-pj-pi-mismatch: detects pj↔pi name mismatch" \
+    "Name mismatch.*plugin.json.*package.json" \
+    "$FIXTURES/crosscheck-pj-pi-mismatch" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "crosscheck-pj-pi-mismatch: detects pj↔pi version mismatch" \
+    "Version mismatch.*plugin.json.*package.json" \
+    "$FIXTURES/crosscheck-pj-pi-mismatch" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "crosscheck-pj-pi-mismatch: detects pj↔pi description mismatch" \
+    "Description mismatch.*plugin.json.*package.json" \
+    "$FIXTURES/crosscheck-pj-pi-mismatch" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "crosscheck-triple-mismatch: detects all three-way name mismatches" \
+    "Name mismatch" \
+    "$FIXTURES/crosscheck-triple-mismatch" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "crosscheck-triple-mismatch: detects all three-way version mismatches" \
+    "Version mismatch" \
+    "$FIXTURES/crosscheck-triple-mismatch" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "crosscheck-triple-mismatch: detects all three-way description mismatches" \
+    "Description mismatch" \
+    "$FIXTURES/crosscheck-triple-mismatch" --skip "$SKIP_EXTERNAL"
+
+# --- P5: Codex/OpenCode markdown lint ---
+
+assert_fail "codex-broken-markdown: codex detects markdown lint errors in AGENTS.md" \
+    "$FIXTURES/codex-broken-markdown" --skip "json,yaml,shell,python,claude,gemini,pi,opencode,crosscheck,skills"
+
 # --- P1 #10: dependency-missing paths ---
 
 test_missing_jq() {

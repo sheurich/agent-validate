@@ -391,6 +391,11 @@ if ! should_skip "codex"; then
         for f in AGENTS.md codex.md; do
             if [[ -f "$f" ]]; then
                 info "Found: $f"
+                # Lint detected markdown files
+                if ! should_skip "markdown"; then
+                    npx --yes "markdownlint-cli@${MARKDOWNLINT_VERSION}" "$f" \
+                        ${markdownlint_config_args[@]+"${markdownlint_config_args[@]}"} || errors=$((errors + 1))
+                fi
             fi
         done
     fi
@@ -401,6 +406,11 @@ if ! should_skip "opencode"; then
     if [[ -f "AGENTS.md" ]]; then
         info "=== Detecting OpenCode agent files ==="
         info "Found: AGENTS.md"
+        # Lint detected markdown files
+        if ! should_skip "markdown"; then
+            npx --yes "markdownlint-cli@${MARKDOWNLINT_VERSION}" "AGENTS.md" \
+                ${markdownlint_config_args[@]+"${markdownlint_config_args[@]}"} || errors=$((errors + 1))
+        fi
     fi
 fi
 
@@ -462,6 +472,17 @@ if ! should_skip "crosscheck"; then
             # Ref: gemini-extension-config.ts L24-L25 (name: string, required)
             if [[ -n "$ge_name" ]] && ! echo "$ge_name" | grep -qE '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
                 echo "Error: gemini-extension.json name '$ge_name' must be lowercase alphanumeric with dashes" >&2
+                errors=$((errors + 1))
+            fi
+
+            # Field allowlist (structural check)
+            # Ref: gemini-extension-config.ts L24-L44 (ExtensionConfig interface fields)
+            gemini_allowed_fields='["name","version","description","mcpServers","contextFileName","excludeTools","settings","themes","plan"]'
+            ge_bad_fields=$(jq -r --argjson allowed "$gemini_allowed_fields" \
+                '[keys[] | select(. as $k | $allowed | index($k) | not)] | .[]' \
+                "$gemini_json")
+            if [[ -n "$ge_bad_fields" ]]; then
+                echo "Error: gemini-extension.json has unrecognized fields: $ge_bad_fields" >&2
                 errors=$((errors + 1))
             fi
         fi

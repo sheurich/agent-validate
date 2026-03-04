@@ -21,9 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Gemini CLI excluded: no standalone `extensions validate` subcommand
-        # yet. See TODO below.
-        platform: [claude, skills-ref]
+        platform: [claude, skills-ref, gemini]
     runs-on: ubuntu-latest
     name: cli-regression (${{ matrix.platform }})
 
@@ -122,6 +120,47 @@ jobs:
               "skill-unknown-field/unknown-field → invalid (bogus field)" \
               fail \
               sref_validate tests/fixtures/skill-unknown-field/skills/unknown-field
+
+          # ── Gemini CLI: gemini extensions validate ─────────────────
+          elif [[ "${{ matrix.platform }}" == "gemini" ]]; then
+            gemini_validate() {
+              npx --yes "@google/gemini-cli@0.26.0" extensions validate "$@"
+            }
+
+            run_case \
+              "standalone-plugin → valid" \
+              pass \
+              gemini_validate tests/fixtures/standalone-plugin
+
+            run_case \
+              "gemini-valid-ctx → valid" \
+              pass \
+              gemini_validate tests/fixtures/gemini-valid-ctx
+
+            run_case \
+              "gemini-ctx-array → valid" \
+              pass \
+              gemini_validate tests/fixtures/gemini-ctx-array
+
+            run_case \
+              "marketplace/plugins/alpha → valid" \
+              pass \
+              gemini_validate tests/fixtures/marketplace/plugins/alpha
+
+            run_case \
+              "gemini-bad-name → invalid (uppercase name)" \
+              fail \
+              gemini_validate tests/fixtures/gemini-bad-name
+
+            run_case \
+              "gemini-broken-ctx → invalid (missing context file)" \
+              fail \
+              gemini_validate tests/fixtures/gemini-broken-ctx
+
+            run_case \
+              "gemini-ctx-array-broken → invalid (missing array entry)" \
+              fail \
+              gemini_validate tests/fixtures/gemini-ctx-array-broken
           fi
 
           # ── Summary ──────────────────────────────────────────────────
@@ -135,34 +174,3 @@ jobs:
             done
             exit 1
           fi
-
-  # ── Gemini CLI ─────────────────────────────────────────────────────
-  # TODO: Add Gemini CLI regression tests once `gemini extensions validate`
-  # works as a standalone subcommand. Tracked upstream; uncomment when
-  # available.
-  #
-  # gemini-cli-regression:
-  #   runs-on: ubuntu-latest
-  #   # Gemini CLI has no working `extensions validate` subcommand yet.
-  #   # Keep this job visible but non-blocking.
-  #   continue-on-error: true
-  #   steps:
-  #     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-  #
-  #     - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238  # v6.2.0
-  #       with:
-  #         node-version: "22"
-  #
-  #     - name: Run fixture tests — gemini
-  #       shell: bash
-  #       run: |
-  #         set -euo pipefail
-  #         GEMINI="npx --yes @google/gemini-cli"
-  #
-  #         # Example cases (adjust once the subcommand exists):
-  #         # $GEMINI extensions validate tests/fixtures/standalone-plugin
-  #         # $GEMINI extensions validate tests/fixtures/gemini-valid-ctx
-  #         # $GEMINI extensions validate tests/fixtures/gemini-broken-ctx
-  #
-  #         echo "⏭️  Gemini CLI extensions validate not yet available"
-  #         exit 1
