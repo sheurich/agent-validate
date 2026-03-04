@@ -1,0 +1,9 @@
+{
+  "name": "pi-triple",
+  "version": "3.0.0",
+  "description": "Pi desc",
+  "pi": {
+    "skills": "./skills"
+  },
+  "keywords": ["pi-package"]
+}

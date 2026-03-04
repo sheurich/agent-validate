@@ -99,7 +99,7 @@ Documentation also mentions: `description`, policy engine (`.toml` files in `pol
 
 `contextFileName` can be a string or array of strings. If omitted and `GEMINI.md` exists, that file is loaded. When an array, each entry is resolved independently.
 
-**What validate.sh checks:** Cross-checks `name`, `version`, `description` against plugin.json/package.json. Validates `contextFileName` file(s) exist — handles both string and array forms. Validates `name` format (lowercase alphanumeric with dashes). Handles malformed JSON gracefully.
+**What validate.sh checks:** Cross-checks `name`, `version`, `description` against plugin.json/package.json. Validates `contextFileName` file(s) exist — handles both string and array forms. Validates `name` format (lowercase alphanumeric with dashes). **Field allowlist** covering all `ExtensionConfig` interface fields: `name`, `version`, `description`, `mcpServers`, `contextFileName`, `excludeTools`, `settings`, `themes`, `plan` — rejects any key not in the allowlist. Handles malformed JSON gracefully.
 
 ### Pi package.json
 
@@ -115,6 +115,22 @@ Pi packages should include `"keywords": ["pi-package"]` for discovery.
 
 **What validate.sh checks:** Extracts top-level `.pi` entry values via `jq`, verifies each resolves as a path. Warns if `keywords` does not include `"pi-package"`. Also checks for TypeScript syntax in `extensions/*.ts`.
 
+### Codex (AGENTS.md / codex.md)
+
+**Source:** No formal specification. Codex uses `AGENTS.md` (shared with OpenCode) and `codex.md` for agent instructions.
+
+**What validate.sh checks:** Detects presence of `AGENTS.md` and/or `codex.md`. Runs markdownlint on detected files (unless `markdown` is skipped). No structural validation beyond markdown lint — no known schema or field requirements exist yet.
+
+**What validate.sh doesn't check:** File content structure, frontmatter, or any Codex-specific conventions. If Codex publishes a spec in the future, add structural checks here.
+
+### OpenCode (AGENTS.md)
+
+**Source:** No formal specification. OpenCode uses `AGENTS.md` for agent instructions.
+
+**What validate.sh checks:** Detects presence of `AGENTS.md`. Runs markdownlint on the file (unless `markdown` is skipped). No structural validation beyond markdown lint.
+
+**What validate.sh doesn't check:** File content structure or any OpenCode-specific conventions. If OpenCode publishes a spec in the future, add structural checks here.
+
 ## Known Drift
 
 No known drift. All upstream spec requirements are covered.
@@ -129,6 +145,8 @@ No known drift. All upstream spec requirements are covered.
 - **marketplace.json top-level validation** (2026-02-26): Added `name`, `owner.name`, `plugins` array, and relative `source` path resolution checks.
 - **Gemini name format validation** (2026-02-26): Checks `name` is lowercase alphanumeric with dashes.
 - **Pi keyword check** (2026-02-26): Warns if `keywords` does not include `"pi-package"`.
+- **Gemini extension field allowlist** (2026-03-04): Rejects unknown fields in `gemini-extension.json` against `ExtensionConfig` interface.
+- **Codex/OpenCode markdown lint** (2026-03-04): Detected `AGENTS.md`/`codex.md` files are now markdownlinted.
 
 ## Updating Specs
 

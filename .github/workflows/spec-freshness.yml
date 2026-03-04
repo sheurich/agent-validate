@@ -182,6 +182,16 @@ jobs:
           for platform in "${!platform_bodies[@]}"; do
             echo "::group::Issue for platform: ${platform}"
 
+            # Ensure labels exist (--force is idempotent)
+            gh label create "spec-drift" \
+              --color "D93F0B" \
+              --description "Vendored spec differs from upstream" \
+              --force
+            gh label create "${platform}" \
+              --color "0075CA" \
+              --description "Platform: ${platform}" \
+              --force
+
             # Search for an existing open issue with both labels.
             existing="$(gh issue list \
               --label "spec-drift" \

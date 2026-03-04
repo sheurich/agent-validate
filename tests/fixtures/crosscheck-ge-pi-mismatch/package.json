@@ -1,0 +1,9 @@
+{
+  "name": "pi-different-name",
+  "version": "2.0.0",
+  "description": "Pi description",
+  "pi": {
+    "skills": "./skills"
+  },
+  "keywords": ["pi-package"]
+}

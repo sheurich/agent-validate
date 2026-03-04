@@ -1,0 +1,14 @@
+{
+  "plugins": [
+    {
+      "name": "bad-ge",
+      "source": "plugins/bad-ge",
+      "version": "1.0.0",
+      "description": "Bad Gemini plugin"
+    }
+  ],
+  "owner": {
+    "name": "test-owner"
+  },
+  "name": "test-marketplace"
+}
