@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-03-04
+
+### Added
+
+- `--check-deploy` flag for opt-in Tier 3 deployment verification
+- Claude Code probe: verifies marketplace registration and plugin install/enabled
+  state via `claude plugin list --json` and `claude plugin marketplace list --json`
+- Gemini CLI probe: verifies extension install/active state via
+  `gemini extensions list -o json`
+- Shared skills hub probe: verifies `~/.agents/skills/` directories match repo
+  SKILL.md names (overridable via `AGENTS_SKILLS_DIR`)
+- `check-deploy` input for GitHub Action (`action.yml`)
+- 9 new tests (98 total)
+
+### Fixed
+
+- CLI probe errors (auth failures, config issues) now report the underlying error
+  instead of silently treating failures as empty results
+- Malformed `.plugins` in marketplace.json now reports a parse error instead of
+  silently skipping sub-plugin verification
+- Missing skills hub directory now errors when skills are expected (instead of
+  silently passing)
+- `action.yml` run step uses args array instead of unquoted variable expansion
+
 ### Added
 
 - `SECURITY.md` with vulnerability reporting and trust model documentation
