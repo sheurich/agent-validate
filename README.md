@@ -21,12 +21,18 @@ Cross-agent plugin/extension/skill validation. Works with Claude Code, Gemini CL
 
 **Cross-platform** — metadata consistency across manifests (name, version, description), SKILL.md validation per the [Agent Skills specification](https://agentskills.io/docs/specification) (name format, description, frontmatter allowlist, discovery paths), duplicate skill detection.
 
+**Tier 3 — Deployment verification** (opt-in via `--check-deploy`):
+
+- Claude Code: plugin installed and enabled (`claude plugin list --json`)
+- Gemini CLI: extension installed and active (`gemini extensions list -o json`)
+- Shared skills hub: skill directories present in `~/.agents/skills/`
+
 ## Usage
 
 ### Script
 
 ```sh
-./validate.sh [--skip CHECKS] [--verbose] [--quiet] [--version] [-h|--help] [TARGET_DIR]
+./validate.sh [--skip CHECKS] [--check-deploy] [--verbose] [--quiet] [--version] [-h|--help] [TARGET_DIR]
 ```
 
 Skip individual checks with a comma-separated list:
@@ -45,15 +51,19 @@ Available skip values: `json`, `yaml`, `markdown`, `shell`, `python`, `claude`, 
 
 The `VALIDATE_SKIP` environment variable works the same way and merges with `--skip`.
 
-`--verbose` shows additional detail like system tool versions. `--quiet` suppresses section headers and informational output (only errors and summary). `--version` prints the version number and exits.
+The `AGENTS_SKILLS_DIR` environment variable overrides the default skills hub
+path (`~/.agents/skills/`) for Tier 3 deployment checks.
+
+`--verbose` shows additional detail like system tool versions. `--quiet` suppresses section headers and informational output (only errors and summary). `--check-deploy` runs Tier 3 deployment verification (off by default). `--version` prints the version number and exits.
 
 ### GitHub Action
 
 ```yaml
 - uses: sheurich/agent-validate@v1
   with:
-    path: "."        # default: repo root
-    skip: ""         # default: none
+    path: "."           # default: repo root
+    skip: ""            # default: none
+    check-deploy: false # default: false (Tier 3)
 ```
 
 All tool versions are pinnable via inputs (`jsonlint-version`, `yamllint-version`, `markdownlint-version`, `ruff-version`, `claude-code-version`, `gemini-cli-version`).

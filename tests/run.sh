@@ -647,6 +647,323 @@ test_vendor_exclusion() {
 }
 test_vendor_exclusion
 
+# --- Tier 3: --check-deploy flag ---
+
+test_check_deploy_flag() {
+    local name="--check-deploy flag is accepted"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    # --check-deploy on empty-dir should pass (no platforms detected)
+    if "$VALIDATE" --check-deploy "$FIXTURES/empty-dir" \
+        --skip "$SKIP_EXTERNAL" >/dev/null 2>&1; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (expected exit 0)" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_check_deploy_flag
+
+test_deploy_claude_check() {
+    local name="deploy-claude: parses claude plugin list JSON correctly"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    # Create temp dir with a canned JSON file and a stub claude script
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Stub claude that returns canned JSON
+    cat > "$tmpdir/claude" << 'STUBEOF'
+#!/usr/bin/env bash
+if [[ "$*" == *"marketplace list"*"--json"* ]]; then
+    echo '[{"name":"test-marketplace"}]'
+elif [[ "$*" == *"plugin list"*"--json"* ]]; then
+    echo '[{"id":"test-plugin@test-marketplace","enabled":true}]'
+fi
+STUBEOF
+    chmod +x "$tmpdir/claude"
+
+    # Fixture: standalone plugin with marketplace
+    mkdir -p "$tmpdir/fix/.claude-plugin"
+    cat > "$tmpdir/fix/.claude-plugin/plugin.json" << 'EOF'
+{"name":"test-plugin","version":"1.0.0"}
+EOF
+    cat > "$tmpdir/fix/.claude-plugin/marketplace.json" << 'EOF'
+{"name":"test-marketplace","owner":{"name":"o"},"plugins":[
+  {"name":"test-plugin","source":"plugins/tp","version":"1.0.0"}
+]}
+EOF
+    mkdir -p "$tmpdir/fix/plugins/tp/.claude-plugin"
+    echo '{"name":"test-plugin","version":"1.0.0"}' \
+        > "$tmpdir/fix/plugins/tp/.claude-plugin/plugin.json"
+
+    local output
+    if output=$(PATH="$tmpdir:$PATH" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir/fix" 2>&1); then
+        if echo "$output" | grep -q "test-plugin.*installed"; then
+            echo "PASS: $name"
+            passed=$((passed + 1))
+        else
+            echo "FAIL: $name (missing expected output)" >&2
+            echo "  Got: $output" >&2
+            failed=$((failed + 1))
+        fi
+    else
+        echo "FAIL: $name (expected exit 0)" >&2
+        echo "  Got: $output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_claude_check
+
+test_deploy_gemini_check() {
+    local name="deploy-gemini: parses gemini extensions list JSON correctly"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Stub gemini
+    cat > "$tmpdir/gemini" << 'STUBEOF'
+#!/usr/bin/env bash
+echo '[{"name":"test-ext","version":"1.0.0","isActive":true}]'
+STUBEOF
+    chmod +x "$tmpdir/gemini"
+
+    # Fixture
+    cat > "$tmpdir/gemini-extension.json" << 'EOF'
+{"name":"test-ext","version":"1.0.0"}
+EOF
+
+    local output
+    if output=$(PATH="$tmpdir:$PATH" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir" 2>&1); then
+        if echo "$output" | grep -q "test-ext.*enabled"; then
+            echo "PASS: $name"
+            passed=$((passed + 1))
+        else
+            echo "FAIL: $name (missing expected output)" >&2
+            echo "  Got: $output" >&2
+            failed=$((failed + 1))
+        fi
+    else
+        echo "FAIL: $name (expected exit 0)" >&2
+        echo "  Got: $output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_gemini_check
+
+test_deploy_skills_hub() {
+    local name="deploy-skills-hub: checks skill directories exist"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Create fake HOME with skills hub
+    mkdir -p "$tmpdir/home/.agents/skills/my-skill"
+    mkdir -p "$tmpdir/fix/skills/my-skill"
+    cat > "$tmpdir/fix/skills/my-skill/SKILL.md" << 'EOF'
+---
+name: my-skill
+description: test skill
+---
+# My Skill
+EOF
+
+    local output
+    if output=$(HOME="$tmpdir/home" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir/fix" 2>&1); then
+        if echo "$output" | grep -q "my-skill.*found"; then
+            echo "PASS: $name"
+            passed=$((passed + 1))
+        else
+            echo "FAIL: $name (missing expected output)" >&2
+            echo "  Got: $output" >&2
+            failed=$((failed + 1))
+        fi
+    else
+        echo "FAIL: $name (expected exit 0)" >&2
+        echo "  Got: $output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_skills_hub
+
+test_deploy_skills_hub_missing() {
+    local name="deploy-skills-hub-missing: detects missing skill directory"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Create fake HOME WITHOUT skills hub entry
+    mkdir -p "$tmpdir/home/.agents/skills"
+    mkdir -p "$tmpdir/fix/skills/missing-skill"
+    cat > "$tmpdir/fix/skills/missing-skill/SKILL.md" << 'EOF'
+---
+name: missing-skill
+description: test skill
+---
+# Missing Skill
+EOF
+
+    local stderr_output
+    stderr_output=$(HOME="$tmpdir/home" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir/fix" 2>&1 >/dev/null) || true
+    if echo "$stderr_output" | grep -q "missing-skill.*not found"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (missing expected error)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_skills_hub_missing
+
+test_deploy_skills_hub_no_dir() {
+    local name="deploy-skills-hub-no-dir: detects missing hub directory"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Create fake HOME WITHOUT .agents/skills/ directory at all
+    mkdir -p "$tmpdir/home"
+    mkdir -p "$tmpdir/fix/skills/orphan-skill"
+    cat > "$tmpdir/fix/skills/orphan-skill/SKILL.md" << 'EOF'
+---
+name: orphan-skill
+description: test skill
+---
+# Orphan Skill
+EOF
+
+    local stderr_output
+    stderr_output=$(HOME="$tmpdir/home" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir/fix" 2>&1 >/dev/null) || true
+    if echo "$stderr_output" | grep -q "hub directory.*not found"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (missing expected error)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_skills_hub_no_dir
+
+test_deploy_claude_missing() {
+    local name="deploy-claude-missing: detects missing plugin"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Stub claude that returns empty lists
+    cat > "$tmpdir/claude" << 'STUBEOF'
+#!/usr/bin/env bash
+echo '[]'
+STUBEOF
+    chmod +x "$tmpdir/claude"
+
+    # Fixture with a plugin that won't be in the list
+    mkdir -p "$tmpdir/fix/.claude-plugin"
+    echo '{"name":"ghost-plugin","version":"1.0.0"}' \
+        > "$tmpdir/fix/.claude-plugin/plugin.json"
+
+    local stderr_output
+    stderr_output=$(PATH="$tmpdir:$PATH" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir/fix" 2>&1 >/dev/null) || true
+    if echo "$stderr_output" | grep -q "ghost-plugin.*not installed"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (missing expected error)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_claude_missing
+
+test_deploy_gemini_disabled() {
+    local name="deploy-gemini-disabled: detects disabled extension"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Stub gemini that returns a disabled extension
+    cat > "$tmpdir/gemini" << 'STUBEOF'
+#!/usr/bin/env bash
+echo '[{"name":"disabled-ext","version":"1.0.0","isActive":false}]'
+STUBEOF
+    chmod +x "$tmpdir/gemini"
+
+    cat > "$tmpdir/gemini-extension.json" << 'EOF'
+{"name":"disabled-ext","version":"1.0.0"}
+EOF
+
+    local stderr_output
+    stderr_output=$(PATH="$tmpdir:$PATH" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir" 2>&1 >/dev/null) || true
+    if echo "$stderr_output" | grep -q "disabled-ext.*disabled"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (missing expected error)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_gemini_disabled
+
+test_deploy_off_by_default() {
+    local name="deploy-off-by-default: tier 3 does not run without --check-deploy"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    # Run against standalone-plugin (which has a claude plugin.json) without
+    # --check-deploy. Should NOT produce any "Checking deployment" output.
+    local output
+    output=$("$VALIDATE" --skip "$SKIP_EXTERNAL" "$FIXTURES/standalone-plugin" 2>&1)
+    if echo "$output" | grep -q "Checking deployment"; then
+        echo "FAIL: $name (deployment checks ran without --check-deploy)" >&2
+        failed=$((failed + 1))
+    else
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    fi
+}
+test_deploy_off_by_default
+
 # --- Meta-tests: consistency and traceability ---
 
 # Test 1: Ref-comment line accuracy

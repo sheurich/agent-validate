@@ -42,6 +42,10 @@ inputs:
     description: typescript version
     required: false
     default: "5.8.3"
+  check-deploy:
+    description: Verify installed state matches repo manifests (Tier 3)
+    required: false
+    default: "false"
 
 outputs:
   result:
@@ -85,5 +89,11 @@ runs:
         CLAUDE_CODE_VERSION: ${{ inputs.claude-code-version }}
         GEMINI_CLI_VERSION: ${{ inputs.gemini-cli-version }}
         TYPESCRIPT_VERSION: ${{ inputs.typescript-version }}
+        CHECK_DEPLOY: ${{ inputs.check-deploy }}
       run: |
-        ${{ github.action_path }}/validate.sh "$INPUT_PATH"
+        args=()
+        if [[ "$CHECK_DEPLOY" == "true" ]]; then
+          args+=("--check-deploy")
+        fi
+        args+=("$INPUT_PATH")
+        "${{ github.action_path }}/validate.sh" "${args[@]}"

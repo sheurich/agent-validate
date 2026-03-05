@@ -29,6 +29,7 @@ Options:
   --skip CHECKS   Comma-separated checks to skip (repeatable)
   --verbose       Show detailed output
   --quiet         Show only errors and summary
+  --check-deploy  Verify installed state matches repo manifests (Tier 3)
   --version       Show version number
   -h, --help      Show this help message
 
@@ -69,6 +70,7 @@ SKIP_CHECKS=""
 TARGET_DIR=""
 VERBOSE=false
 QUIET=false
+CHECK_DEPLOY=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -86,6 +88,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --quiet)
             QUIET=true
+            shift
+            ;;
+        --check-deploy)
+            CHECK_DEPLOY=true
             shift
             ;;
         --skip)
@@ -865,6 +871,172 @@ if ! should_skip "skills"; then
         fi
     fi
 fi
+
+# --- Tier 3: Deployment verification ---
+
+if $CHECK_DEPLOY; then
+
+    # Claude Code deployment check
+    if command -v claude >/dev/null 2>&1; then
+        info "=== Checking deployment (Claude Code) ==="
+
+        # Check marketplace registration
+        if [[ -f ".claude-plugin/marketplace.json" ]]; then
+            mp_name_expected=$(jq -r '.name // empty' \
+                ".claude-plugin/marketplace.json")
+            if [[ -n "$mp_name_expected" ]]; then
+                if mp_list=$(claude plugin marketplace list --json 2>&1); then
+                    if echo "$mp_list" | jq -e \
+                        --arg n "$mp_name_expected" \
+                        '[.[] | select(.name == $n)] | length > 0' \
+                        >/dev/null 2>&1; then
+                        info "  ✓ marketplace ${mp_name_expected}: registered"
+                    else
+                        echo "Error: marketplace ${mp_name_expected}: not registered" >&2
+                        errors=$((errors + 1))
+                    fi
+                else
+                    echo "Error: claude plugin marketplace list failed" >&2
+                    detail "  $mp_list"
+                    errors=$((errors + 1))
+                fi
+            fi
+        fi
+
+        # Check plugin installation and enabled state
+        plugin_list=""
+        if [[ -f ".claude-plugin/plugin.json" ]] || [[ -f ".claude-plugin/marketplace.json" ]]; then
+            if ! plugin_list=$(claude plugin list --json 2>&1); then
+                echo "Error: claude plugin list failed" >&2
+                detail "  $plugin_list"
+                errors=$((errors + 1))
+                plugin_list=""
+            fi
+        fi
+
+        # Root plugin
+        if [[ -n "$plugin_list" && -f ".claude-plugin/plugin.json" ]]; then
+            root_pj_name=$(jq -r '.name // empty' \
+                ".claude-plugin/plugin.json")
+            if [[ -n "$root_pj_name" ]]; then
+                plugin_match=$(echo "$plugin_list" | jq -r \
+                    --arg n "$root_pj_name" \
+                    '[.[] | select(.id | startswith($n + "@"))] | .[0]')
+                if [[ "$plugin_match" != "null" && -n "$plugin_match" ]]; then
+                    is_enabled=$(echo "$plugin_match" | jq -r '.enabled')
+                    if [[ "$is_enabled" == "true" ]]; then
+                        info "  ✓ plugin ${root_pj_name}: installed and enabled"
+                    else
+                        echo "Error: plugin ${root_pj_name}: installed but not enabled" >&2
+                        errors=$((errors + 1))
+                    fi
+                else
+                    echo "Error: plugin ${root_pj_name}: not installed" >&2
+                    errors=$((errors + 1))
+                fi
+            fi
+        fi
+
+        # Marketplace sub-plugins
+        if [[ -n "$plugin_list" && -f ".claude-plugin/marketplace.json" ]]; then
+            if ! mp_deploy_count=$(jq -e -r '.plugins | length' \
+                ".claude-plugin/marketplace.json" 2>/dev/null); then
+                echo "Error: failed to parse .claude-plugin/marketplace.json (.plugins)" >&2
+                errors=$((errors + 1))
+                mp_deploy_count=0
+            fi
+            for ((i = 0; i < mp_deploy_count; i++)); do
+                sub_name=$(jq -r ".plugins[$i].name" \
+                    ".claude-plugin/marketplace.json")
+                # Skip if already checked as root plugin
+                [[ "$sub_name" == "${root_pj_name:-}" ]] && continue
+                plugin_match=$(echo "$plugin_list" | jq -r \
+                    --arg n "$sub_name" \
+                    '[.[] | select(.id | startswith($n + "@"))] | .[0]')
+                if [[ "$plugin_match" != "null" && -n "$plugin_match" ]]; then
+                    is_enabled=$(echo "$plugin_match" | jq -r '.enabled')
+                    if [[ "$is_enabled" == "true" ]]; then
+                        info "  ✓ plugin ${sub_name}: installed and enabled"
+                    else
+                        echo "Error: plugin ${sub_name}: installed but not enabled" >&2
+                        errors=$((errors + 1))
+                    fi
+                else
+                    echo "Error: plugin ${sub_name}: not installed" >&2
+                    errors=$((errors + 1))
+                fi
+            done
+        fi
+    else
+        detail "Claude CLI not found, skipping deployment check"
+    fi
+
+    # Gemini CLI deployment check
+    if command -v gemini >/dev/null 2>&1; then
+        if [[ -f "gemini-extension.json" ]]; then
+            info "=== Checking deployment (Gemini CLI) ==="
+            ge_deploy_name=$(jq -r '.name // empty' "gemini-extension.json")
+            if [[ -n "$ge_deploy_name" ]]; then
+                if ext_list=$(gemini extensions list -o json 2>&1); then
+                    ext_match=$(echo "$ext_list" | jq -r \
+                        --arg n "$ge_deploy_name" \
+                        '[.[] | select(.name == $n)] | .[0]')
+                    if [[ "$ext_match" != "null" && -n "$ext_match" ]]; then
+                        is_active=$(echo "$ext_match" | jq -r '.isActive')
+                        if [[ "$is_active" == "true" ]]; then
+                            info "  ✓ extension ${ge_deploy_name}: installed and enabled"
+                        else
+                            echo "Error: extension ${ge_deploy_name}: installed but disabled" >&2
+                            errors=$((errors + 1))
+                        fi
+                    else
+                        echo "Error: extension ${ge_deploy_name}: not installed" >&2
+                        errors=$((errors + 1))
+                    fi
+                else
+                    echo "Error: gemini extensions list failed" >&2
+                    detail "  $ext_list"
+                    errors=$((errors + 1))
+                fi
+            fi
+        fi
+    else
+        detail "Gemini CLI not found, skipping deployment check"
+    fi
+
+    # Shared skills hub deployment check
+    # Checks ~/.agents/skills/ for expected skill directories.
+    # Override with AGENTS_SKILLS_DIR env var.
+    agents_skills_dir="${AGENTS_SKILLS_DIR:-${HOME}/.agents/skills}"
+
+    # Collect expected skill names from SKILL.md discovery
+    deploy_skill_names=()
+    for sd in skills .agents/skills .claude/skills .opencode/skills; do
+        [[ -d "$sd" ]] || continue
+        while IFS= read -r -d '' skill_file; do
+            fm_name=$(awk '/^---$/{if(++c==2)exit; next} c==1 && /^name:/{sub(/^name:[[:space:]]*/, ""); print; exit}' "$skill_file")
+            [[ -n "$fm_name" ]] && deploy_skill_names+=("$fm_name")
+        done < <(find -P "$sd" -name "SKILL.md" -print0)
+    done
+
+    if [[ ${#deploy_skill_names[@]} -gt 0 ]]; then
+        info "=== Checking deployment (~/.agents/skills/) ==="
+        if [[ ! -d "$agents_skills_dir" ]]; then
+            echo "Error: shared skills hub directory ${agents_skills_dir}/ not found; expected skills: ${deploy_skill_names[*]}" >&2
+            errors=$((errors + 1))
+        else
+            for skill_name in "${deploy_skill_names[@]}"; do
+                if [[ -d "$agents_skills_dir/$skill_name" ]]; then
+                    info "  ✓ skill ${skill_name}: found"
+                else
+                    echo "Error: skill ${skill_name}: not found in ${agents_skills_dir}/" >&2
+                    errors=$((errors + 1))
+                fi
+            done
+        fi
+    fi
+
+fi  # CHECK_DEPLOY
 
 # --- Extra validation hook ---
 if [[ -f "scripts/validate-extra.sh" ]]; then
