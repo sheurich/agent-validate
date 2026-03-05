@@ -10,13 +10,13 @@
 #   YAMLLINT_VERSION       yamllint version (default: 1.37.0)
 #   MARKDOWNLINT_VERSION   markdownlint-cli version (default: 0.47.0)
 #   RUFF_VERSION           ruff version (default: 0.14.14)
-#   CLAUDE_CODE_VERSION    @anthropic-ai/claude-code version (default: 2.1.22)
-#   GEMINI_CLI_VERSION     @google/gemini-cli version (default: 0.26.0)
+#   CLAUDE_CODE_VERSION    @anthropic-ai/claude-code version (default: 2.1.69)
+#   GEMINI_CLI_VERSION     @google/gemini-cli version (default: 0.31.0)
 #   TYPESCRIPT_VERSION     typescript version (default: 5.8.3)
 
 set -euo pipefail
 
-VALIDATE_VERSION="1.2.0"
+VALIDATE_VERSION="1.3.0"
 
 # --- Usage ---
 usage() {
@@ -58,8 +58,8 @@ JSONLINT_VERSION="${JSONLINT_VERSION:-1.7.6}"
 YAMLLINT_VERSION="${YAMLLINT_VERSION:-1.37.0}"
 MARKDOWNLINT_VERSION="${MARKDOWNLINT_VERSION:-0.47.0}"
 RUFF_VERSION="${RUFF_VERSION:-0.14.14}"
-CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.22}"
-GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION:-0.26.0}"
+CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.69}"
+GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION:-0.31.0}"
 TYPESCRIPT_VERSION="${TYPESCRIPT_VERSION:-5.8.3}"
 
 # --- Script location (for bundled defaults) ---
@@ -354,6 +354,8 @@ if ! should_skip "pi"; then
         if [[ -f "package.json" ]] && jq -e '.pi' "package.json" >/dev/null 2>&1; then
             while IFS= read -r pi_path; do
                 [[ -z "$pi_path" || "$pi_path" == "null" ]] && continue
+                # Skip URL values (e.g. pi.video, pi.image gallery fields)
+                [[ "$pi_path" =~ ^https?:// ]] && continue
                 if [[ ! -e "$pi_path" ]]; then
                     echo "Error: package.json pi path does not resolve: $pi_path" >&2
                     errors=$((errors + 1))
@@ -444,6 +446,10 @@ if ! should_skip "crosscheck"; then
     # Field allowlist for gemini-extension.json (used by root and sub-plugin checks)
     # Ref: gemini-extension-config.ts L24-L44 (ExtensionConfig interface fields)
     # Ref: gemini-extension-reference.md L139 (description field, not in interface)
+    # NOTE: "description" is in the reference docs but not the TS interface.
+    # NOTE: "plan" is in the main-branch TS interface but not yet shipped in
+    #       the 0.31.0 stable release. Kept in allowlist to avoid false errors
+    #       for extensions targeting HEAD; documented as known drift.
     gemini_allowed_fields='["name","version","description","mcpServers","contextFileName","excludeTools","settings","themes","plan"]'
 
     if [[ -f "$plugin_json" ]]; then
@@ -574,6 +580,60 @@ if ! should_skip "crosscheck"; then
             if [[ ! -f "GEMINI.md" ]]; then
                 info "Note: No contextFileName and no GEMINI.md (Gemini gets no root context)"
             fi
+        fi
+    fi
+
+    # Gemini extension sub-component validation (structural, no CLI needed)
+    # Bundled under crosscheck so tests can skip the gemini CLI while
+    # still exercising structural checks.
+    # Ref: gemini-extension-reference.md (hooks, commands, policies, agents)
+    if [[ -f "$gemini_json" ]]; then
+        if [[ -f "hooks/hooks.json" ]]; then
+            detail "Checking hooks/hooks.json syntax"
+            if ! jq empty "hooks/hooks.json" 2>/dev/null; then
+                echo "Error: hooks/hooks.json is not valid JSON" >&2
+                errors=$((errors + 1))
+            fi
+        fi
+
+        if [[ -d "commands" ]]; then
+            ge_toml_files=()
+            while IFS= read -r -d '' f; do
+                ge_toml_files+=("$f")
+            done < <(find -P commands -name "*.toml" -print0 2>/dev/null)
+            if [[ ${#ge_toml_files[@]} -gt 0 ]]; then
+                if command -v taplo >/dev/null 2>&1; then
+                    detail "Checking commands/*.toml syntax"
+                    printf '%s\0' "${ge_toml_files[@]}" | xargs -0 taplo check || errors=$((errors + 1))
+                else
+                    detail "taplo not found, skipping commands/*.toml syntax check"
+                fi
+            fi
+        fi
+
+        if [[ -d "policies" ]]; then
+            ge_policy_files=()
+            while IFS= read -r -d '' f; do
+                ge_policy_files+=("$f")
+            done < <(find -P policies -name "*.toml" -print0 2>/dev/null)
+            if [[ ${#ge_policy_files[@]} -gt 0 ]]; then
+                if command -v taplo >/dev/null 2>&1; then
+                    detail "Checking policies/*.toml syntax"
+                    printf '%s\0' "${ge_policy_files[@]}" | xargs -0 taplo check || errors=$((errors + 1))
+                else
+                    detail "taplo not found, skipping policies/*.toml syntax check"
+                fi
+            fi
+        fi
+
+        if [[ -d "agents" ]]; then
+            while IFS= read -r -d '' agent_md; do
+                # Verify agents/*.md files have YAML frontmatter
+                if ! head -1 "$agent_md" | grep -q '^---$'; then
+                    echo "Error: $agent_md missing YAML frontmatter (expected --- delimiter)" >&2
+                    errors=$((errors + 1))
+                fi
+            done < <(find -P agents -name "*.md" -print0 2>/dev/null)
         fi
     fi
 
@@ -763,7 +823,8 @@ if ! should_skip "skills"; then
     # Ref: agentskills-specification.mdx L49-L54 (frontmatter field table)
     allowed_fm_fields="name description license allowed-tools metadata compatibility"
     # Known agent-specific extensions (warning, not error)
-    known_extensions="user-invocable argument-hint"
+    # Ref: pi-skills.md L148 (disable-model-invocation frontmatter field)
+    known_extensions="user-invocable argument-hint disable-model-invocation"
 
     if [[ ${#skill_dirs[@]} -gt 0 ]]; then
         info "=== Checking SKILL.md (Agent Skills specification) ==="
@@ -996,6 +1057,37 @@ if $CHECK_DEPLOY; then
                 else
                     echo "Error: gemini extensions list failed" >&2
                     detail "  $ext_list"
+                    errors=$((errors + 1))
+                fi
+            fi
+        fi
+
+        # Gemini skills deployment check (gemini skills list)
+        # Verifies repo skills are installed via Gemini's first-class skill management.
+        # Only runs when gemini-extension.json is present (Gemini extension context).
+        if [[ -f "gemini-extension.json" ]]; then
+            deploy_ge_skill_names=()
+            for sd in skills .agents/skills .claude/skills .opencode/skills; do
+                [[ -d "$sd" ]] || continue
+                while IFS= read -r -d '' skill_file; do
+                    fm_name=$(awk '/^---$/{if(++c==2)exit; next} c==1 && /^name:/{sub(/^name:[[:space:]]*/, ""); print; exit}' "$skill_file")
+                    [[ -n "$fm_name" ]] && deploy_ge_skill_names+=("$fm_name")
+                done < <(find -P "$sd" -name "SKILL.md" -print0)
+            done
+            if [[ ${#deploy_ge_skill_names[@]} -gt 0 ]]; then
+                info "=== Checking deployment (Gemini skills) ==="
+                if ge_skills_list=$(gemini skills list 2>&1); then
+                    for skill_name in "${deploy_ge_skill_names[@]}"; do
+                        if echo "$ge_skills_list" | grep -qF "$skill_name"; then
+                            info "  ✓ skill ${skill_name}: registered"
+                        else
+                            echo "Error: skill ${skill_name}: not found in gemini skills list" >&2
+                            errors=$((errors + 1))
+                        fi
+                    done
+                else
+                    echo "Error: gemini skills list failed" >&2
+                    detail "  $ge_skills_list"
                     errors=$((errors + 1))
                 fi
             fi

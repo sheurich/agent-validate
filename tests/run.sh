@@ -220,6 +220,9 @@ assert_fail_stderr "pi-broken-path: detects nonexistent pi paths" \
 assert_pass "pi-valid-paths: valid pi paths pass" \
     "$FIXTURES/pi-valid-paths" --skip "json,yaml,markdown,shell,python,claude,gemini,codex,opencode,crosscheck,skills"
 
+assert_pass "pi-url-fields: URL values in pi manifest are not treated as paths" \
+    "$FIXTURES/pi-url-fields" --skip "json,yaml,markdown,shell,python,claude,gemini,codex,opencode,crosscheck,skills"
+
 # --- Item 2: Marketplace enumeration logic ---
 
 assert_pass "marketplace-strict-false: strict:false plugins are skipped" \
@@ -368,6 +371,10 @@ assert_pass_stderr "skill-user-invocable: accepts user-invocable with portabilit
 assert_pass_stderr "skill-argument-hint: accepts argument-hint with portability warning" \
     "argument-hint.*not part of the Agent Skills specification" \
     "$FIXTURES/skill-argument-hint" --skip "$SKIP_EXTERNAL,crosscheck"
+
+assert_pass_stderr "skill-disable-model-invocation: accepts disable-model-invocation with portability warning" \
+    "disable-model-invocation.*not part of the Agent Skills specification" \
+    "$FIXTURES/skill-disable-model-invocation" --skip "$SKIP_EXTERNAL,crosscheck"
 
 assert_pass "skill-name-match-skip: name≠folder passes with skill-name-match skipped" \
     "$FIXTURES/skill-name-match-skip" --skip "$SKIP_EXTERNAL,crosscheck,skill-name-match"
@@ -963,6 +970,84 @@ test_deploy_off_by_default() {
     fi
 }
 test_deploy_off_by_default
+
+# --- Gemini sub-component validation ---
+
+assert_pass "gemini-subcomponents: valid hooks.json and agents/*.md pass" \
+    "$FIXTURES/gemini-subcomponents" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "gemini-subcomponents-broken: invalid hooks.json detected" \
+    "hooks/hooks.json is not valid JSON" \
+    "$FIXTURES/gemini-subcomponents-broken" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "gemini-subcomponents-broken: missing agent frontmatter detected" \
+    "missing YAML frontmatter" \
+    "$FIXTURES/gemini-subcomponents-broken" --skip "$SKIP_EXTERNAL"
+
+# --- Tier 3: Gemini skills deployment ---
+
+test_deploy_gemini_skills() {
+    local name="deploy-gemini-skills: verifies repo skills via gemini skills list"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Stub gemini that handles both extensions and skills subcommands
+    cat > "$tmpdir/gemini" << 'STUBEOF'
+#!/usr/bin/env bash
+if [[ "$*" == *"extensions list"* ]]; then
+    echo '[]'
+elif [[ "$*" == *"skills list"* ]]; then
+    echo "deploy-test-skill  installed  ~/.agents/skills/deploy-test-skill"
+fi
+STUBEOF
+    chmod +x "$tmpdir/gemini"
+
+    # Fixture with gemini-extension.json and a skill
+    cat > "$tmpdir/gemini-extension.json" << 'EOF'
+{"name":"test-ext","version":"1.0.0"}
+EOF
+    mkdir -p "$tmpdir/skills/deploy-test-skill"
+    cat > "$tmpdir/skills/deploy-test-skill/SKILL.md" << 'EOF'
+---
+name: deploy-test-skill
+description: test skill for deploy check
+---
+# Deploy Test Skill
+EOF
+
+    local output
+    if output=$(PATH="$tmpdir:$PATH" HOME="$tmpdir" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir" 2>&1); then
+        if echo "$output" | grep -q "deploy-test-skill.*registered"; then
+            echo "PASS: $name"
+            passed=$((passed + 1))
+        else
+            echo "FAIL: $name (missing expected output)" >&2
+            echo "  Got: $output" >&2
+            failed=$((failed + 1))
+        fi
+    else
+        # The extension itself won't be installed, so overall may fail;
+        # check that the skills portion ran correctly anyway
+        local combined
+        combined=$( (PATH="$tmpdir:$PATH" HOME="$tmpdir" "$VALIDATE" --check-deploy \
+            --skip "$SKIP_EXTERNAL" "$tmpdir" 2>&1) || true)
+        if echo "$combined" | grep -q "deploy-test-skill.*registered"; then
+            echo "PASS: $name"
+            passed=$((passed + 1))
+        else
+            echo "FAIL: $name (missing expected output)" >&2
+            echo "  Got: $combined" >&2
+            failed=$((failed + 1))
+        fi
+    fi
+}
+test_deploy_gemini_skills
 
 # --- Meta-tests: consistency and traceability ---
 

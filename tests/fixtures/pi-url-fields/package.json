@@ -1,0 +1,12 @@
+{
+  "name": "test-pi-url-fields",
+  "version": "1.0.0",
+  "description": "Pi package with URL values in pi manifest",
+  "pi": {
+    "video": "https://example.com/demo.mp4",
+    "image": "https://example.com/screenshot.png"
+  },
+  "keywords": [
+    "pi-package"
+  ]
+}

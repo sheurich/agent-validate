@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-03-05
+
+### Added
+
+- Bump `CLAUDE_CODE_VERSION` from 2.1.22 → 2.1.69
+- Bump `GEMINI_CLI_VERSION` from 0.26.0 → 0.31.0
+- Re-vendored all 6 reference specs against latest upstream commits
+- Vendored Pi `docs/skills.md` as `references/pi-skills.md` with spec-freshness entry
+- `disable-model-invocation` SKILL.md frontmatter field accepted with portability
+  warning (Pi 0.56.0 extension)
+- Gemini extension sub-component validation: `hooks/hooks.json` (JSON syntax),
+  `commands/*.toml` and `policies/*.toml` (TOML via taplo), `agents/*.md` (YAML
+  frontmatter). Bundled under existing `gemini` skip.
+- Gemini skills deployment check: `gemini skills list` in Tier 3 (0.31.0
+  first-class skill management)
+- Documented Gemini `plan` field drift (main-branch vs. 0.31.0 stable) and
+  `description` gap (docs vs. TS interface) in spec-conformance SKILL.md
+- Pi `video`/`image` URL fields no longer cause false path-resolution errors
+- 6 new tests (104 total)
+
+### Fixed
+
+- Pi URL false positives: `video` and `image` values starting with `https?://`
+  are now skipped during path resolution (they are package gallery URLs, not paths)
+- CLI versions in `cli-regression.yml` updated to match validate.sh pins
+
+### Changed
+
+- spec-freshness.yml SHA pins updated to latest upstream commits
+- spec-conformance/SKILL.md: updated all "Last verified" dates, added Known Drift
+  section, expanded Previously Fixed Drift, documented Pi Skills and Gemini
+  sub-components
+
 ## [1.2.0] - 2026-03-04
 
 ### Added

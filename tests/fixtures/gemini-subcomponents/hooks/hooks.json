@@ -1,0 +1,1 @@
+{"preSubmit": [{"command": "lint", "args": ["--fix"]}]}

@@ -29,7 +29,7 @@ When updating validate.sh for a new upstream spec version:
 **Source:** `https://agentskills.io/docs/specification` / `https://raw.githubusercontent.com/agentskills/agentskills/main/docs/specification.mdx`
 **Reference validator:** `https://github.com/agentskills/agentskills/tree/main/skills-ref`
 **Vendored:** `references/agentskills-specification.mdx`
-**Last verified:** 2026-02-26
+**Last verified:** 2026-03-05
 
 This is the canonical source of truth for SKILL.md validation. The Agent Skills open standard defines:
 
@@ -47,6 +47,8 @@ Optional frontmatter: `license`, `compatibility`, `metadata`, `allowed-tools`.
 
 **What validate.sh checks:** All of the above, plus:
 - `user-invocable` accepted with a portability warning (used by Claude Code for slash menu visibility; not in the spec)
+- `argument-hint` accepted with a portability warning (used by Pi for CLI hint display; not in the spec)
+- `disable-model-invocation` accepted with a portability warning (used by Pi to hide skills from system prompt; not in the spec)
 - Name-folder mismatch configurable: error by default, skippable via `--skip skill-name-match`
 - Promoted skills (grandparent is `skills`, `tools`, or `howto`) get warnings instead of errors for name mismatch
 - Scans: `skills/`, `.agents/skills/`, `.claude/skills/`, `.opencode/skills/`, `plugins/*/skills/`
@@ -56,7 +58,7 @@ Optional frontmatter: `license`, `compatibility`, `metadata`, `allowed-tools`.
 
 **Source:** `https://code.claude.com/docs/en/plugins-reference.md`
 **Vendored:** `references/claude-plugins-reference.md`
-**Last verified:** 2026-02-26
+**Last verified:** 2026-03-05
 
 Required fields: `name` only (manifest itself is optional).
 
@@ -70,7 +72,7 @@ Component path fields (all optional): `commands`, `agents`, `skills`, `hooks`, `
 
 **Source:** `https://code.claude.com/docs/en/plugin-marketplaces.md`
 **Vendored:** `references/claude-plugin-marketplaces.md`
-**Last verified:** 2026-02-26
+**Last verified:** 2026-03-05
 
 Required top-level fields: `name`, `owner` (with required `owner.name`), `plugins` array.
 
@@ -91,29 +93,49 @@ Source types: relative paths, GitHub repos (`github:owner/repo`), git URLs, npm 
 **Source:** `https://github.com/google-gemini/gemini-cli/blob/main/docs/extensions/reference.md`
 **TypeScript interface:** `https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/extension.ts`
 **Vendored:** `references/gemini-extension-reference.md`, `references/gemini-extension-config.ts`
-**Last verified:** 2026-03-04
+**Last verified:** 2026-03-05
 
-Interface fields: `name` (string, required), `version` (string, required), `mcpServers` (optional), `contextFileName` (string or string[], optional), `excludeTools` (string[], optional), `settings` (ExtensionSetting[], optional), `themes` (CustomTheme[], optional), `plan` (object with optional `directory`, optional).
+Interface fields: `name` (string, required), `version` (string, required), `mcpServers` (optional), `contextFileName` (string or string[], optional), `excludeTools` (string[], optional), `settings` (ExtensionSetting[], optional), `themes` (CustomTheme[], optional), `plan` (object with optional `directory`, optional — **see drift note below**).
 
 Documentation also mentions: `description`, policy engine (`.toml` files in `policies/` directory).
 
+**`description` gap:** The `description` field appears in the reference docs but is NOT in the `ExtensionConfig` TypeScript interface. validate.sh includes it in the allowlist based on the docs.
+
+**`plan` field drift:** The `plan` field is present in the `main`-branch TypeScript interface (`gemini-extension-config.ts`) but is **not yet shipped** in the 0.31.0 stable release. The field is kept in the allowlist to avoid false errors for extensions targeting HEAD. If a future stable release adds it, remove this note.
+
+**Sub-components (0.31.0):** Gemini CLI 0.31.0 supports extension sub-components: `commands/*.toml` (command definitions), `hooks/hooks.json` (lifecycle hooks), `agents/*.md` (agent definitions), `policies/*.toml` (policy rules). validate.sh checks JSON/TOML syntax and agent frontmatter when these directories exist. TOML checks require `taplo` on PATH.
+
+**`gemini skills` CLI:** Gemini 0.31.0 introduces first-class `gemini skills list` / `gemini skills install` commands for standalone skill management. validate.sh checks installed skills via `gemini skills list` in Tier 3 deployment verification.
+
 `contextFileName` can be a string or array of strings. If omitted and `GEMINI.md` exists, that file is loaded. When an array, each entry is resolved independently.
 
-**What validate.sh checks:** Cross-checks `name`, `version`, `description` against plugin.json/package.json. Validates `contextFileName` file(s) exist — handles both string and array forms. Validates `name` format (lowercase alphanumeric with dashes). **Field allowlist** covering all `ExtensionConfig` interface fields: `name`, `version`, `description`, `mcpServers`, `contextFileName`, `excludeTools`, `settings`, `themes`, `plan` — rejects any key not in the allowlist. Handles malformed JSON gracefully.
+**What validate.sh checks:** Cross-checks `name`, `version`, `description` against plugin.json/package.json. Validates `contextFileName` file(s) exist — handles both string and array forms. Validates `name` format (lowercase alphanumeric with dashes). **Field allowlist** covering all `ExtensionConfig` interface fields: `name`, `version`, `description`, `mcpServers`, `contextFileName`, `excludeTools`, `settings`, `themes`, `plan` — rejects any key not in the allowlist. Handles malformed JSON gracefully. Validates sub-component syntax: `hooks/hooks.json` (JSON), `commands/*.toml` and `policies/*.toml` (TOML via taplo), `agents/*.md` (YAML frontmatter). Tier 3 deployment verifies installed skills via `gemini skills list`.
 
 ### Pi package.json
 
 **Source:** `https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md`
 **Vendored:** `references/pi-readme.md`
-**Last verified:** 2026-02-26
+**Last verified:** 2026-03-05
 
-The `pi` key in package.json can contain: `extensions`, `skills`, `prompts`, `themes` — each a string or array of directory paths.
+The `pi` key in package.json can contain: `extensions`, `skills`, `prompts`, `themes` — each a string or array of directory paths. It can also contain `video` and `image` — URL strings for the [package gallery](https://shittycodingagent.ai/packages) preview (not file paths).
 
 Without a `pi` manifest, pi auto-discovers from conventional directories (`extensions/`, `skills/`, `prompts/`, `themes/`).
 
 Pi packages should include `"keywords": ["pi-package"]` for discovery.
 
-**What validate.sh checks:** Extracts top-level `.pi` entry values via `jq`, verifies each resolves as a path. Warns if `keywords` does not include `"pi-package"`. Also checks for TypeScript syntax in `extensions/*.ts`.
+**What validate.sh checks:** Extracts top-level `.pi` entry values via `jq`, skips URL values (`https?://`), verifies remaining values resolve as paths. Warns if `keywords` does not include `"pi-package"`. Also checks for TypeScript syntax in `extensions/*.ts`.
+
+### Pi Skills
+
+**Source:** `https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/skills.md`
+**Vendored:** `references/pi-skills.md`
+**Last verified:** 2026-03-05
+
+Pi 0.56.0 documents skill frontmatter in `docs/skills.md`. In addition to the Agent Skills specification fields, Pi recognizes:
+
+- `disable-model-invocation` (boolean): when `true`, the skill is hidden from the system prompt; users must invoke it explicitly via `/skill:name`.
+
+Pi ignores unknown frontmatter fields (they don't cause errors in Pi itself). validate.sh treats `disable-model-invocation` as a known extension and emits a portability warning rather than an error.
 
 ### Codex (AGENTS.md / codex.md)
 
@@ -151,6 +173,7 @@ Requires `gemini` binary on PATH. Parses `gemini extensions list -o json`.
 Checks:
 - Extension name from gemini-extension.json appears in installed list
 - `.isActive` is true (not just installed)
+- Repo skills are registered via `gemini skills list` (first-class skill management in 0.31.0)
 
 ### Shared skills hub (~/.agents/skills/)
 
@@ -166,19 +189,15 @@ No CLI needed — checks directory presence. Checks:
 
 ## Known Drift
 
-No known drift. All upstream spec requirements are covered.
+- **Gemini `plan` field (main vs. stable):** The `plan` field exists in the `main`-branch `ExtensionConfig` TypeScript interface but is not present in Gemini CLI 0.31.0 stable. The allowlist includes `plan` to avoid false errors; extensions targeting `main` will validate correctly. Remove this entry when `plan` ships in a stable release.
+- **Gemini `description` gap:** The `description` field appears in the extension reference docs but is not in the `ExtensionConfig` TypeScript interface. The allowlist includes it based on the documentation.
 
 ## Previously Fixed Drift
 
-- **Agent Skills spec alignment** (2026-02-26): Full implementation of agentskills.io specification — name format, description non-empty/length, compatibility length, frontmatter field allowlist, discovery paths, `user-invocable` portability warning.
-- **Pi path filter tightened** (2026-02-26): Extracts `.pi` entry values instead of recursive string grepping to avoid false positives.
-- **Malformed JSON handling** (2026-02-26): Crosscheck gracefully handles invalid JSON in plugin.json and gemini-extension.json.
-- **plugin.json allowlist expanded** (2026-02-26): Added component path fields (`commands`, `agents`, `skills`, `hooks`, `mcpServers`, `outputStyles`, `lspServers`).
-- **contextFileName array handling** (2026-02-26): Both root and marketplace sub-plugin checks now handle `string | string[]`.
-- **marketplace.json top-level validation** (2026-02-26): Added `name`, `owner.name`, `plugins` array, and relative `source` path resolution checks.
-- **Gemini name format validation** (2026-02-26): Checks `name` is lowercase alphanumeric with dashes.
-- **Pi keyword check** (2026-02-26): Warns if `keywords` does not include `"pi-package"`.
-- **Gemini extension field allowlist** (2026-03-04): Rejects unknown fields in `gemini-extension.json` against `ExtensionConfig` interface.
+- **Pi URL false positives** (2026-03-05): `video` and `image` fields in `.pi` are URL strings for the package gallery, not file paths. The jq extraction now skips `https?://` values.
+- **`disable-model-invocation` misclassified** (2026-03-05): Pi 0.56.0 documents this SKILL.md frontmatter field in `docs/skills.md`. Previously rejected as an unknown field; now accepted with a portability warning.
+- **Gemini sub-component validation** (2026-03-05): Added syntax checks for `hooks/hooks.json`, `commands/*.toml`, `policies/*.toml`, and `agents/*.md` frontmatter.
+- **Gemini extension field allowlist** (2026-03-05): Rejects unknown fields in `gemini-extension.json` against `ExtensionConfig` interface. Added `plan` drift documentation.
 - **Codex/OpenCode markdown lint** (2026-03-04): Detected `AGENTS.md`/`codex.md` files are now markdownlinted.
 
 ## Updating Specs
