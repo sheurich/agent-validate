@@ -900,7 +900,10 @@ if $CHECK_DEPLOY; then
         fi
 
         # Check plugin installation and enabled state
-        plugin_list=$(claude plugin list --json 2>/dev/null) || plugin_list="[]"
+        plugin_list="[]"
+        if [[ -f ".claude-plugin/plugin.json" ]] || [[ -f ".claude-plugin/marketplace.json" ]]; then
+            plugin_list=$(claude plugin list --json 2>/dev/null) || plugin_list="[]"
+        fi
 
         # Root plugin
         if [[ -f ".claude-plugin/plugin.json" ]]; then
@@ -933,6 +936,8 @@ if $CHECK_DEPLOY; then
             for ((i = 0; i < mp_deploy_count; i++)); do
                 sub_name=$(jq -r ".plugins[$i].name" \
                     ".claude-plugin/marketplace.json")
+                # Skip if already checked as root plugin
+                [[ "$sub_name" == "${root_pj_name:-}" ]] && continue
                 plugin_match=$(echo "$plugin_list" | jq -r \
                     --arg n "$sub_name" \
                     '[.[] | select(.id | startswith($n + "@"))] | .[0]')
