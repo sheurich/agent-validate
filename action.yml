@@ -91,8 +91,9 @@ runs:
         TYPESCRIPT_VERSION: ${{ inputs.typescript-version }}
         CHECK_DEPLOY: ${{ inputs.check-deploy }}
       run: |
-        deploy_flag=""
+        args=()
         if [[ "$CHECK_DEPLOY" == "true" ]]; then
-          deploy_flag="--check-deploy"
+          args+=("--check-deploy")
         fi
-        ${{ github.action_path }}/validate.sh $deploy_flag "$INPUT_PATH"
+        args+=("$INPUT_PATH")
+        "${{ github.action_path }}/validate.sh" "${args[@]}"

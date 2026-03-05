@@ -838,6 +838,41 @@ EOF
 }
 test_deploy_skills_hub_missing
 
+test_deploy_skills_hub_no_dir() {
+    local name="deploy-skills-hub-no-dir: detects missing hub directory"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Create fake HOME WITHOUT .agents/skills/ directory at all
+    mkdir -p "$tmpdir/home"
+    mkdir -p "$tmpdir/fix/skills/orphan-skill"
+    cat > "$tmpdir/fix/skills/orphan-skill/SKILL.md" << 'EOF'
+---
+name: orphan-skill
+description: test skill
+---
+# Orphan Skill
+EOF
+
+    local stderr_output
+    stderr_output=$(HOME="$tmpdir/home" "$VALIDATE" --check-deploy \
+        --skip "$SKIP_EXTERNAL" "$tmpdir/fix" 2>&1 >/dev/null) || true
+    if echo "$stderr_output" | grep -q "hub directory.*not found"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (missing expected error)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    fi
+}
+test_deploy_skills_hub_no_dir
+
 test_deploy_claude_missing() {
     local name="deploy-claude-missing: detects missing plugin"
     if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then

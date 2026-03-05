@@ -885,28 +885,37 @@ if $CHECK_DEPLOY; then
             mp_name_expected=$(jq -r '.name // empty' \
                 ".claude-plugin/marketplace.json")
             if [[ -n "$mp_name_expected" ]]; then
-                mp_list=$(claude plugin marketplace list --json 2>/dev/null) \
-                    || mp_list="[]"
-                if echo "$mp_list" | jq -e \
-                    --arg n "$mp_name_expected" \
-                    '[.[] | select(.name == $n)] | length > 0' \
-                    >/dev/null 2>&1; then
-                    info "  ✓ marketplace ${mp_name_expected}: registered"
+                if mp_list=$(claude plugin marketplace list --json 2>&1); then
+                    if echo "$mp_list" | jq -e \
+                        --arg n "$mp_name_expected" \
+                        '[.[] | select(.name == $n)] | length > 0' \
+                        >/dev/null 2>&1; then
+                        info "  ✓ marketplace ${mp_name_expected}: registered"
+                    else
+                        echo "Error: marketplace ${mp_name_expected}: not registered" >&2
+                        errors=$((errors + 1))
+                    fi
                 else
-                    echo "Error: marketplace ${mp_name_expected}: not registered" >&2
+                    echo "Error: claude plugin marketplace list failed" >&2
+                    detail "  $mp_list"
                     errors=$((errors + 1))
                 fi
             fi
         fi
 
         # Check plugin installation and enabled state
-        plugin_list="[]"
+        plugin_list=""
         if [[ -f ".claude-plugin/plugin.json" ]] || [[ -f ".claude-plugin/marketplace.json" ]]; then
-            plugin_list=$(claude plugin list --json 2>/dev/null) || plugin_list="[]"
+            if ! plugin_list=$(claude plugin list --json 2>&1); then
+                echo "Error: claude plugin list failed" >&2
+                detail "  $plugin_list"
+                errors=$((errors + 1))
+                plugin_list=""
+            fi
         fi
 
         # Root plugin
-        if [[ -f ".claude-plugin/plugin.json" ]]; then
+        if [[ -n "$plugin_list" && -f ".claude-plugin/plugin.json" ]]; then
             root_pj_name=$(jq -r '.name // empty' \
                 ".claude-plugin/plugin.json")
             if [[ -n "$root_pj_name" ]]; then
@@ -929,10 +938,13 @@ if $CHECK_DEPLOY; then
         fi
 
         # Marketplace sub-plugins
-        if [[ -f ".claude-plugin/marketplace.json" ]]; then
-            mp_deploy_count=$(jq -e -r '.plugins | length' \
-                ".claude-plugin/marketplace.json" 2>/dev/null) \
-                || mp_deploy_count=0
+        if [[ -n "$plugin_list" && -f ".claude-plugin/marketplace.json" ]]; then
+            if ! mp_deploy_count=$(jq -e -r '.plugins | length' \
+                ".claude-plugin/marketplace.json" 2>/dev/null); then
+                echo "Error: failed to parse .claude-plugin/marketplace.json (.plugins)" >&2
+                errors=$((errors + 1))
+                mp_deploy_count=0
+            fi
             for ((i = 0; i < mp_deploy_count; i++)); do
                 sub_name=$(jq -r ".plugins[$i].name" \
                     ".claude-plugin/marketplace.json")
@@ -965,21 +977,25 @@ if $CHECK_DEPLOY; then
             info "=== Checking deployment (Gemini CLI) ==="
             ge_deploy_name=$(jq -r '.name // empty' "gemini-extension.json")
             if [[ -n "$ge_deploy_name" ]]; then
-                ext_list=$(gemini extensions list -o json 2>/dev/null) \
-                    || ext_list="[]"
-                ext_match=$(echo "$ext_list" | jq -r \
-                    --arg n "$ge_deploy_name" \
-                    '[.[] | select(.name == $n)] | .[0]')
-                if [[ "$ext_match" != "null" && -n "$ext_match" ]]; then
-                    is_active=$(echo "$ext_match" | jq -r '.isActive')
-                    if [[ "$is_active" == "true" ]]; then
-                        info "  ✓ extension ${ge_deploy_name}: installed and enabled"
+                if ext_list=$(gemini extensions list -o json 2>&1); then
+                    ext_match=$(echo "$ext_list" | jq -r \
+                        --arg n "$ge_deploy_name" \
+                        '[.[] | select(.name == $n)] | .[0]')
+                    if [[ "$ext_match" != "null" && -n "$ext_match" ]]; then
+                        is_active=$(echo "$ext_match" | jq -r '.isActive')
+                        if [[ "$is_active" == "true" ]]; then
+                            info "  ✓ extension ${ge_deploy_name}: installed and enabled"
+                        else
+                            echo "Error: extension ${ge_deploy_name}: installed but disabled" >&2
+                            errors=$((errors + 1))
+                        fi
                     else
-                        echo "Error: extension ${ge_deploy_name}: installed but disabled" >&2
+                        echo "Error: extension ${ge_deploy_name}: not installed" >&2
                         errors=$((errors + 1))
                     fi
                 else
-                    echo "Error: extension ${ge_deploy_name}: not installed" >&2
+                    echo "Error: gemini extensions list failed" >&2
+                    detail "  $ext_list"
                     errors=$((errors + 1))
                 fi
             fi
@@ -992,19 +1008,23 @@ if $CHECK_DEPLOY; then
     # Checks ~/.agents/skills/ for expected skill directories.
     # Override with AGENTS_SKILLS_DIR env var.
     agents_skills_dir="${AGENTS_SKILLS_DIR:-${HOME}/.agents/skills}"
-    if [[ -d "$agents_skills_dir" ]]; then
-        # Collect expected skill names from SKILL.md discovery
-        deploy_skill_names=()
-        for sd in skills .agents/skills .claude/skills .opencode/skills; do
-            [[ -d "$sd" ]] || continue
-            while IFS= read -r -d '' skill_file; do
-                fm_name=$(awk '/^---$/{if(++c==2)exit; next} c==1 && /^name:/{sub(/^name:[[:space:]]*/, ""); print; exit}' "$skill_file")
-                [[ -n "$fm_name" ]] && deploy_skill_names+=("$fm_name")
-            done < <(find -P "$sd" -name "SKILL.md" -print0)
-        done
 
-        if [[ ${#deploy_skill_names[@]} -gt 0 ]]; then
-            info "=== Checking deployment (~/.agents/skills/) ==="
+    # Collect expected skill names from SKILL.md discovery
+    deploy_skill_names=()
+    for sd in skills .agents/skills .claude/skills .opencode/skills; do
+        [[ -d "$sd" ]] || continue
+        while IFS= read -r -d '' skill_file; do
+            fm_name=$(awk '/^---$/{if(++c==2)exit; next} c==1 && /^name:/{sub(/^name:[[:space:]]*/, ""); print; exit}' "$skill_file")
+            [[ -n "$fm_name" ]] && deploy_skill_names+=("$fm_name")
+        done < <(find -P "$sd" -name "SKILL.md" -print0)
+    done
+
+    if [[ ${#deploy_skill_names[@]} -gt 0 ]]; then
+        info "=== Checking deployment (~/.agents/skills/) ==="
+        if [[ ! -d "$agents_skills_dir" ]]; then
+            echo "Error: shared skills hub directory ${agents_skills_dir}/ not found; expected skills: ${deploy_skill_names[*]}" >&2
+            errors=$((errors + 1))
+        else
             for skill_name in "${deploy_skill_names[@]}"; do
                 if [[ -d "$agents_skills_dir/$skill_name" ]]; then
                     info "  ✓ skill ${skill_name}: found"
