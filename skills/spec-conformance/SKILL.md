@@ -194,7 +194,7 @@ No CLI needed — checks directory presence. Checks:
 
 ## Previously Fixed Drift
 
-- **Gemini CLI 0.31.0 headless CI regression** (2026-03-05): `extensions validate` exited 41 on all fixtures in GitHub Actions. Fixed by upgrading to 0.32.1.
+- **Gemini CLI headless CI regression** (2026-03-05): `extensions validate` exits 41 in headless CI because the CLI gates on auth config before dispatching any subcommand. Fix: set a dummy `GEMINI_API_KEY` env var — the validate subcommand never calls the API.
 - **Pi URL false positives** (2026-03-05): `video` and `image` fields in `.pi` are URL strings for the package gallery, not file paths. The jq extraction now skips `https?://` values only for `video`/`image` keys.
 - **`disable-model-invocation` misclassified** (2026-03-05): Pi 0.56.0 documents this SKILL.md frontmatter field in `docs/skills.md`. Previously rejected as an unknown field; now accepted with a portability warning.
 - **Gemini sub-component validation** (2026-03-05): Added syntax checks for `hooks/hooks.json`, `commands/*.toml`, `policies/*.toml`, and `agents/*.md` frontmatter.

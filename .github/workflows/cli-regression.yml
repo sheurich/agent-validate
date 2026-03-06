@@ -122,9 +122,13 @@ jobs:
               sref_validate tests/fixtures/skill-unknown-field/skills/unknown-field
 
           # ── Gemini CLI: gemini extensions validate ─────────────────
+          # NOTE: Gemini CLI ≥0.31.0 requires auth config to launch, even
+          # for offline subcommands like `extensions validate`.  A dummy
+          # GEMINI_API_KEY satisfies the auth gate without calling the API.
           elif [[ "${{ matrix.platform }}" == "gemini" ]]; then
             gemini_validate() {
-              npx --yes "@google/gemini-cli@0.32.1" extensions validate "$@"
+              GEMINI_API_KEY="not-a-real-key" \
+                npx --yes "@google/gemini-cli@0.32.1" extensions validate "$@"
             }
 
             run_case \
