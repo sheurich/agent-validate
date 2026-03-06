@@ -1,0 +1,11 @@
+{
+  "name": "test-pi-url-in-extensions",
+  "version": "1.0.0",
+  "description": "Pi package with URL in extensions (should fail)",
+  "pi": {
+    "extensions": "https://example.com/not-a-path"
+  },
+  "keywords": [
+    "pi-package"
+  ]
+}

@@ -20,9 +20,9 @@ permissions:
 
 env:
   # Pin to the commit matching vendored specs. Update after re-vendoring.
-  AGENTSKILLS_SHA: "f019a02dbbb1302217c4b4a14557d6384d9ace9a"
-  GEMINI_CLI_SHA: "e63d273e4e242caff6ee6fdc1b87b0b2c8d12443"
-  PI_MONO_SHA: "40a8706bb9767d314db2ff137697cdc9fb4eb82a"
+  AGENTSKILLS_SHA: "a3d02daa99ff01467e3bec94b038933416b7d8d8"
+  GEMINI_CLI_SHA: "1ba9d7128418aafeacd91b5b07201d59c14c6619"
+  PI_MONO_SHA: "7aed39063bdcb3643cc1cf404130cd70876fd364"
   REFS_DIR: skills/spec-conformance/references
 
 jobs:
@@ -147,6 +147,13 @@ jobs:
             "${GH_RAW}/badlogic/pi-mono/${PI_MONO_SHA}/packages/coding-agent/README.md" \
             "${REFS_DIR}/pi-readme.md" \
             "pi-readme.md" \
+            "pi"
+
+          # 7. Pi Skills documentation
+          fetch_and_diff \
+            "${GH_RAW}/badlogic/pi-mono/${PI_MONO_SHA}/packages/coding-agent/docs/skills.md" \
+            "${REFS_DIR}/pi-skills.md" \
+            "pi-skills.md" \
             "pi"
 
           # --- report results -------------------------------------------------
