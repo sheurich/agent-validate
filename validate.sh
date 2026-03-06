@@ -11,7 +11,7 @@
 #   MARKDOWNLINT_VERSION   markdownlint-cli version (default: 0.47.0)
 #   RUFF_VERSION           ruff version (default: 0.14.14)
 #   CLAUDE_CODE_VERSION    @anthropic-ai/claude-code version (default: 2.1.69)
-#   GEMINI_CLI_VERSION     @google/gemini-cli version (default: 0.31.0)
+#   GEMINI_CLI_VERSION     @google/gemini-cli version (default: 0.32.1)
 #   TYPESCRIPT_VERSION     typescript version (default: 5.8.3)
 
 set -euo pipefail
@@ -59,7 +59,7 @@ YAMLLINT_VERSION="${YAMLLINT_VERSION:-1.37.0}"
 MARKDOWNLINT_VERSION="${MARKDOWNLINT_VERSION:-0.47.0}"
 RUFF_VERSION="${RUFF_VERSION:-0.14.14}"
 CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.69}"
-GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION:-0.31.0}"
+GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION:-0.32.1}"
 TYPESCRIPT_VERSION="${TYPESCRIPT_VERSION:-5.8.3}"
 
 # --- Script location (for bundled defaults) ---
@@ -450,7 +450,7 @@ if ! should_skip "crosscheck"; then
     # Ref: gemini-extension-reference.md L139 (description field, not in interface)
     # NOTE: "description" is in the reference docs but not the TS interface.
     # NOTE: "plan" is in the main-branch TS interface but not yet shipped in
-    #       the 0.31.0 stable release. Kept in allowlist to avoid false errors
+    #       the 0.32.1 stable release. Kept in allowlist to avoid false errors
     #       for extensions targeting HEAD; documented as known drift.
     gemini_allowed_fields='["name","version","description","mcpServers","contextFileName","excludeTools","settings","themes","plan"]'
 

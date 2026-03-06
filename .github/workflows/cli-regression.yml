@@ -124,30 +124,27 @@ jobs:
           # ── Gemini CLI: gemini extensions validate ─────────────────
           elif [[ "${{ matrix.platform }}" == "gemini" ]]; then
             gemini_validate() {
-              npx --yes "@google/gemini-cli@0.31.0" extensions validate "$@"
+              npx --yes "@google/gemini-cli@0.32.1" extensions validate "$@"
             }
 
-            # NOTE: gemini-cli 0.31.0 exits 41 in headless CI (no TTY/config).
-            # Valid fixtures are marked expected-fail until upstream fixes this.
-            # Locally these pass (exit 0). Track: gemini-cli #??? if filed.
             run_case \
-              "standalone-plugin → valid (exit 41 in CI)" \
-              fail \
+              "standalone-plugin → valid" \
+              pass \
               gemini_validate tests/fixtures/standalone-plugin
 
             run_case \
-              "gemini-valid-ctx → valid (exit 41 in CI)" \
-              fail \
+              "gemini-valid-ctx → valid" \
+              pass \
               gemini_validate tests/fixtures/gemini-valid-ctx
 
             run_case \
-              "gemini-ctx-array → valid (exit 41 in CI)" \
-              fail \
+              "gemini-ctx-array → valid" \
+              pass \
               gemini_validate tests/fixtures/gemini-ctx-array
 
             run_case \
-              "marketplace/plugins/alpha → valid (exit 41 in CI)" \
-              fail \
+              "marketplace/plugins/alpha → valid" \
+              pass \
               gemini_validate tests/fixtures/marketplace/plugins/alpha
 
             run_case \

@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Bump `CLAUDE_CODE_VERSION` from 2.1.22 → 2.1.69
-- Bump `GEMINI_CLI_VERSION` from 0.26.0 → 0.31.0
+- Bump `GEMINI_CLI_VERSION` from 0.26.0 → 0.32.1
 - Re-vendored all 6 reference specs against latest upstream commits
 - Vendored Pi `docs/skills.md` as `references/pi-skills.md` with spec-freshness entry
 - `disable-model-invocation` SKILL.md frontmatter field accepted with portability

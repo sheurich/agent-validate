@@ -101,11 +101,11 @@ Documentation also mentions: `description`, policy engine (`.toml` files in `pol
 
 **`description` gap:** The `description` field appears in the reference docs but is NOT in the `ExtensionConfig` TypeScript interface. validate.sh includes it in the allowlist based on the docs.
 
-**`plan` field drift:** The `plan` field is present in the `main`-branch TypeScript interface (`gemini-extension-config.ts`) but is **not yet shipped** in the 0.31.0 stable release. The field is kept in the allowlist to avoid false errors for extensions targeting HEAD. If a future stable release adds it, remove this note.
+**`plan` field drift:** The `plan` field is present in the `main`-branch TypeScript interface (`gemini-extension-config.ts`) but is **not yet shipped** in the 0.32.1 stable release. The field is kept in the allowlist to avoid false errors for extensions targeting HEAD. If a future stable release adds it, remove this note.
 
-**Sub-components (0.31.0):** Gemini CLI 0.31.0 supports extension sub-components: `commands/*.toml` (command definitions), `hooks/hooks.json` (lifecycle hooks), `agents/*.md` (agent definitions), `policies/*.toml` (policy rules). validate.sh checks JSON/TOML syntax and agent frontmatter when these directories exist. TOML checks require `taplo` on PATH.
+**Sub-components (0.32.1):** Gemini CLI 0.32.1 supports extension sub-components: `commands/*.toml` (command definitions), `hooks/hooks.json` (lifecycle hooks), `agents/*.md` (agent definitions), `policies/*.toml` (policy rules). validate.sh checks JSON/TOML syntax and agent frontmatter when these directories exist. TOML checks require `taplo` on PATH.
 
-**`gemini skills` CLI:** Gemini 0.31.0 introduces first-class `gemini skills list` / `gemini skills install` commands for standalone skill management. validate.sh checks installed skills via `gemini skills list` in Tier 3 deployment verification.
+**`gemini skills` CLI:** Gemini 0.32.1 introduces first-class `gemini skills list` / `gemini skills install` commands for standalone skill management. validate.sh checks installed skills via `gemini skills list` in Tier 3 deployment verification.
 
 `contextFileName` can be a string or array of strings. If omitted and `GEMINI.md` exists, that file is loaded. When an array, each entry is resolved independently.
 
@@ -173,7 +173,7 @@ Requires `gemini` binary on PATH. Parses `gemini extensions list -o json`.
 Checks:
 - Extension name from gemini-extension.json appears in installed list
 - `.isActive` is true (not just installed)
-- Repo skills are registered via `gemini skills list` (first-class skill management in 0.31.0)
+- Repo skills are registered via `gemini skills list` (first-class skill management in 0.32.1)
 
 ### Shared skills hub (~/.agents/skills/)
 
@@ -189,13 +189,13 @@ No CLI needed — checks directory presence. Checks:
 
 ## Known Drift
 
-- **Gemini `plan` field (main vs. stable):** The `plan` field exists in the `main`-branch `ExtensionConfig` TypeScript interface but is not present in Gemini CLI 0.31.0 stable. The allowlist includes `plan` to avoid false errors; extensions targeting `main` will validate correctly. Remove this entry when `plan` ships in a stable release.
+- **Gemini `plan` field (main vs. stable):** The `plan` field exists in the `main`-branch `ExtensionConfig` TypeScript interface but is not present in Gemini CLI 0.32.1 stable. The allowlist includes `plan` to avoid false errors; extensions targeting `main` will validate correctly. Remove this entry when `plan` ships in a stable release.
 - **Gemini `description` gap:** The `description` field appears in the extension reference docs but is not in the `ExtensionConfig` TypeScript interface. The allowlist includes it based on the documentation.
-- **Gemini CLI 0.31.0 headless CI (exit 41):** `gemini extensions validate` exits 41 on all fixtures when run in GitHub Actions (no TTY / no config directory). Valid-fixture regression tests are marked expected-fail in `cli-regression.yml`. Works correctly locally. Track upstream fix.
 
 ## Previously Fixed Drift
 
-- **Pi URL false positives** (2026-03-05): `video` and `image` fields in `.pi` are URL strings for the package gallery, not file paths. The jq extraction now skips `https?://` values.
+- **Gemini CLI 0.31.0 headless CI regression** (2026-03-05): `extensions validate` exited 41 on all fixtures in GitHub Actions. Fixed by upgrading to 0.32.1.
+- **Pi URL false positives** (2026-03-05): `video` and `image` fields in `.pi` are URL strings for the package gallery, not file paths. The jq extraction now skips `https?://` values only for `video`/`image` keys.
 - **`disable-model-invocation` misclassified** (2026-03-05): Pi 0.56.0 documents this SKILL.md frontmatter field in `docs/skills.md`. Previously rejected as an unknown field; now accepted with a portability warning.
 - **Gemini sub-component validation** (2026-03-05): Added syntax checks for `hooks/hooks.json`, `commands/*.toml`, `policies/*.toml`, and `agents/*.md` frontmatter.
 - **Gemini extension field allowlist** (2026-03-05): Rejects unknown fields in `gemini-extension.json` against `ExtensionConfig` interface. Added `plan` drift documentation.
