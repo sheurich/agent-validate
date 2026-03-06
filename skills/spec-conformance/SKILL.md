@@ -191,6 +191,7 @@ No CLI needed — checks directory presence. Checks:
 
 - **Gemini `plan` field (main vs. stable):** The `plan` field exists in the `main`-branch `ExtensionConfig` TypeScript interface but is not present in Gemini CLI 0.31.0 stable. The allowlist includes `plan` to avoid false errors; extensions targeting `main` will validate correctly. Remove this entry when `plan` ships in a stable release.
 - **Gemini `description` gap:** The `description` field appears in the extension reference docs but is not in the `ExtensionConfig` TypeScript interface. The allowlist includes it based on the documentation.
+- **Gemini CLI 0.31.0 headless CI (exit 41):** `gemini extensions validate` exits 41 on all fixtures when run in GitHub Actions (no TTY / no config directory). Valid-fixture regression tests are marked expected-fail in `cli-regression.yml`. Works correctly locally. Track upstream fix.
 
 ## Previously Fixed Drift
 
