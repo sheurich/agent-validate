@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   warning (Pi 0.56.0 extension)
 - Gemini extension sub-component validation: `hooks/hooks.json` (JSON syntax),
   `commands/*.toml` and `policies/*.toml` (TOML via taplo), `agents/*.md` (YAML
-  frontmatter). Bundled under existing `gemini` skip.
+  frontmatter). Bundled under existing `crosscheck` skip.
 - Gemini skills deployment check: `gemini skills list` in Tier 3 (0.31.0
   first-class skill management)
 - Documented Gemini `plan` field drift (main-branch vs. 0.31.0 stable) and
@@ -35,8 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (`grep -qF`), preventing `foo` from falsely matching `foo-bar`
 - Gemini agent frontmatter check verifies both opening and closing `---`
   delimiters, catching files with unclosed frontmatter
-- Pi URL false positives: `video` and `image` values starting with `https?://`
-  are now skipped during path resolution (they are package gallery URLs, not paths)
 - CLI versions in `cli-regression.yml` updated to match validate.sh pins
 
 ### Changed

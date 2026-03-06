@@ -1041,16 +1041,14 @@ EOF
         fi
     else
         # The extension itself won't be installed, so overall may fail;
-        # check that the skills portion ran correctly anyway
-        local combined
-        combined=$( (PATH="$tmpdir:$PATH" HOME="$tmpdir" "$VALIDATE" --check-deploy \
-            --skip "$SKIP_EXTERNAL" "$tmpdir" 2>&1) || true)
-        if echo "$combined" | grep -q "deploy-test-skill.*registered"; then
+        # check that the skills portion ran correctly anyway using the
+        # output from the initial run.
+        if echo "$output" | grep -q "deploy-test-skill.*registered"; then
             echo "PASS: $name"
             passed=$((passed + 1))
         else
             echo "FAIL: $name (missing expected output)" >&2
-            echo "  Got: $combined" >&2
+            echo "  Got: $output" >&2
             failed=$((failed + 1))
         fi
     fi

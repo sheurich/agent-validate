@@ -588,7 +588,8 @@ if ! should_skip "crosscheck"; then
     # Gemini extension sub-component validation (structural, no CLI needed)
     # Bundled under crosscheck so tests can skip the gemini CLI while
     # still exercising structural checks.
-    # Ref: gemini-extension-reference.md (hooks, commands, policies, agents)
+    # Ref: gemini-extension-reference.md L208-L218 (commands), L219-L223 (hooks),
+    #      L231-L236 (agents), L238-L246 (policies)
     if [[ -f "$gemini_json" ]]; then
         if [[ -f "hooks/hooks.json" ]]; then
             detail "Checking hooks/hooks.json syntax"

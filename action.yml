@@ -33,11 +33,11 @@ inputs:
   claude-code-version:
     description: claude-code version
     required: false
-    default: "2.1.22"
+    default: "2.1.69"
   gemini-cli-version:
     description: gemini-cli version
     required: false
-    default: "0.26.0"
+    default: "0.32.1"
   typescript-version:
     description: typescript version
     required: false
