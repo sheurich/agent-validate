@@ -20,12 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Gemini extension sub-component validation: `hooks/hooks.json` (JSON syntax),
   `commands/*.toml` and `policies/*.toml` (TOML via taplo), `agents/*.md` (YAML
   frontmatter). Bundled under existing `crosscheck` skip.
-- Gemini skills deployment check: `gemini skills list` in Tier 3 (0.31.0
+- Gemini skills deployment check: `gemini skills list` in Tier 3 (0.32.1
   first-class skill management)
-- Documented Gemini `plan` field drift (main-branch vs. 0.31.0 stable) and
+- Documented Gemini `plan` field drift (main-branch vs. 0.32.1 stable) and
   `description` gap (docs vs. TS interface) in spec-conformance SKILL.md
 - Pi `video`/`image` URL fields no longer cause false path-resolution errors
-- 8 new tests (106 total)
+- 10 new tests (108 total)
 
 ### Fixed
 

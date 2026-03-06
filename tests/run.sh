@@ -977,7 +977,7 @@ test_deploy_off_by_default
 
 # --- Gemini sub-component validation ---
 
-assert_pass "gemini-subcomponents: valid hooks.json and agents/*.md pass" \
+assert_pass "gemini-subcomponents: valid hooks.json, agents/*.md, commands/*.toml, policies/*.toml pass" \
     "$FIXTURES/gemini-subcomponents" --skip "$SKIP_EXTERNAL"
 
 assert_fail_stderr "gemini-subcomponents-broken: invalid hooks.json detected" \
@@ -987,6 +987,16 @@ assert_fail_stderr "gemini-subcomponents-broken: invalid hooks.json detected" \
 assert_fail_stderr "gemini-subcomponents-broken: missing agent frontmatter detected" \
     "missing YAML frontmatter" \
     "$FIXTURES/gemini-subcomponents-broken" --skip "$SKIP_EXTERNAL"
+
+if command -v taplo >/dev/null 2>&1; then
+    assert_fail_stderr "gemini-subcomponents-broken: invalid commands/*.toml detected" \
+        "error" \
+        "$FIXTURES/gemini-subcomponents-broken" --skip "$SKIP_EXTERNAL"
+
+    assert_fail_stderr "gemini-subcomponents-broken: invalid policies/*.toml detected" \
+        "error" \
+        "$FIXTURES/gemini-subcomponents-broken" --skip "$SKIP_EXTERNAL"
+fi
 
 assert_fail_stderr "gemini-agent-unclosed-fm: detects opening --- without closing delimiter" \
     "no closing frontmatter delimiter" \

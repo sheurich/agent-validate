@@ -287,6 +287,12 @@ fi
 
 # --- Tier 2: Platform-specific ---
 
+# Gemini CLI ≥0.31.0 gates on auth config before dispatching any subcommand,
+# even offline ones like `extensions validate`.  A dummy GEMINI_API_KEY
+# satisfies the gate without calling the API.
+: "${GEMINI_API_KEY:=not-a-real-key}"
+export GEMINI_API_KEY
+
 # Claude Code
 if ! should_skip "claude"; then
     if [[ -d ".claude-plugin" ]]; then
@@ -350,7 +356,7 @@ if ! should_skip "pi"; then
         info "=== Validating Pi package ==="
 
         # Verify package.json pi paths resolve
-        # Ref: pi-readme.md L361-L370 (pi key in package.json: extensions, skills, prompts, themes)
+        # Ref: pi-readme.md L351-L368 (pi key in package.json: extensions, skills, prompts, themes)
         if [[ -f "package.json" ]] && jq -e '.pi' "package.json" >/dev/null 2>&1; then
             while IFS=$'\t' read -r pi_key pi_path; do
                 [[ -z "$pi_path" || "$pi_path" == "null" ]] && continue
