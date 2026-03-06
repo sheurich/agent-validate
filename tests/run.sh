@@ -220,8 +220,12 @@ assert_fail_stderr "pi-broken-path: detects nonexistent pi paths" \
 assert_pass "pi-valid-paths: valid pi paths pass" \
     "$FIXTURES/pi-valid-paths" --skip "json,yaml,markdown,shell,python,claude,gemini,codex,opencode,crosscheck,skills"
 
-assert_pass "pi-url-fields: URL values in pi manifest are not treated as paths" \
+assert_pass "pi-url-fields: URL values in pi.video/pi.image are not treated as paths" \
     "$FIXTURES/pi-url-fields" --skip "json,yaml,markdown,shell,python,claude,gemini,codex,opencode,crosscheck,skills"
+
+assert_fail_stderr "pi-url-in-extensions: URL in pi.extensions is still rejected" \
+    "pi path does not resolve" \
+    "$FIXTURES/pi-url-in-extensions" --skip "json,yaml,markdown,shell,python,claude,gemini,codex,opencode,crosscheck,skills"
 
 # --- Item 2: Marketplace enumeration logic ---
 
@@ -983,6 +987,10 @@ assert_fail_stderr "gemini-subcomponents-broken: invalid hooks.json detected" \
 assert_fail_stderr "gemini-subcomponents-broken: missing agent frontmatter detected" \
     "missing YAML frontmatter" \
     "$FIXTURES/gemini-subcomponents-broken" --skip "$SKIP_EXTERNAL"
+
+assert_fail_stderr "gemini-agent-unclosed-fm: detects opening --- without closing delimiter" \
+    "no closing frontmatter delimiter" \
+    "$FIXTURES/gemini-agent-unclosed-fm" --skip "$SKIP_EXTERNAL"
 
 # --- Tier 3: Gemini skills deployment ---
 

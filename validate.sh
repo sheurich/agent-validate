@@ -352,15 +352,17 @@ if ! should_skip "pi"; then
         # Verify package.json pi paths resolve
         # Ref: pi-readme.md L361-L370 (pi key in package.json: extensions, skills, prompts, themes)
         if [[ -f "package.json" ]] && jq -e '.pi' "package.json" >/dev/null 2>&1; then
-            while IFS= read -r pi_path; do
+            while IFS=$'\t' read -r pi_key pi_path; do
                 [[ -z "$pi_path" || "$pi_path" == "null" ]] && continue
-                # Skip URL values (e.g. pi.video, pi.image gallery fields)
-                [[ "$pi_path" =~ ^https?:// ]] && continue
+                # Skip URL values only for known gallery fields (video, image)
+                if [[ "$pi_key" == "video" || "$pi_key" == "image" ]] && [[ "$pi_path" =~ ^https?:// ]]; then
+                    continue
+                fi
                 if [[ ! -e "$pi_path" ]]; then
                     echo "Error: package.json pi path does not resolve: $pi_path" >&2
                     errors=$((errors + 1))
                 fi
-            done < <(jq -r '.pi | to_entries[] | .value | if type == "array" then .[] else . end | strings' "package.json" 2>/dev/null || true)
+            done < <(jq -r '.pi | to_entries[] | . as $e | ($e.value | if type == "array" then .[] else . end | strings) as $v | "\($e.key)\t\($v)"' "package.json" 2>/dev/null || true)
         fi
 
         # Check for pi-package keyword (discovery convention)
@@ -628,9 +630,13 @@ if ! should_skip "crosscheck"; then
 
         if [[ -d "agents" ]]; then
             while IFS= read -r -d '' agent_md; do
-                # Verify agents/*.md files have YAML frontmatter
+                # Verify agents/*.md files have YAML frontmatter (opening + closing ---)
+                fm_delimiters=$(grep -c '^---$' "$agent_md" 2>/dev/null || echo 0)
                 if ! head -1 "$agent_md" | grep -q '^---$'; then
                     echo "Error: $agent_md missing YAML frontmatter (expected --- delimiter)" >&2
+                    errors=$((errors + 1))
+                elif [[ "$fm_delimiters" -lt 2 ]]; then
+                    echo "Error: $agent_md has opening --- but no closing frontmatter delimiter" >&2
                     errors=$((errors + 1))
                 fi
             done < <(find -P agents -name "*.md" -print0 2>/dev/null)
@@ -1078,7 +1084,7 @@ if $CHECK_DEPLOY; then
                 info "=== Checking deployment (Gemini skills) ==="
                 if ge_skills_list=$(gemini skills list 2>&1); then
                     for skill_name in "${deploy_ge_skill_names[@]}"; do
-                        if echo "$ge_skills_list" | grep -qF "$skill_name"; then
+                        if echo "$ge_skills_list" | grep -qE "(^|[[:space:]])${skill_name}([[:space:]]|$)"; then
                             info "  ✓ skill ${skill_name}: registered"
                         else
                             echo "Error: skill ${skill_name}: not found in gemini skills list" >&2

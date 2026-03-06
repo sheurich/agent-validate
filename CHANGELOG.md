@@ -25,10 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Documented Gemini `plan` field drift (main-branch vs. 0.31.0 stable) and
   `description` gap (docs vs. TS interface) in spec-conformance SKILL.md
 - Pi `video`/`image` URL fields no longer cause false path-resolution errors
-- 6 new tests (104 total)
+- 8 new tests (106 total)
 
 ### Fixed
 
+- Pi URL bypass is now key-aware: only `video` and `image` fields skip URL
+  values; a URL in `pi.extensions` or `pi.skills` is correctly rejected
+- Gemini skills deploy check uses word-boundary matching instead of substring
+  (`grep -qF`), preventing `foo` from falsely matching `foo-bar`
+- Gemini agent frontmatter check verifies both opening and closing `---`
+  delimiters, catching files with unclosed frontmatter
 - Pi URL false positives: `video` and `image` values starting with `https?://`
   are now skipped during path resolution (they are package gallery URLs, not paths)
 - CLI versions in `cli-regression.yml` updated to match validate.sh pins
