@@ -191,6 +191,7 @@ No CLI needed — checks directory presence. Checks:
 
 - **Gemini `plan` field (main vs. stable):** The `plan` field exists in the `main`-branch `ExtensionConfig` TypeScript interface but is not present in Gemini CLI 0.32.1 stable. The allowlist includes `plan` to avoid false errors; extensions targeting `main` will validate correctly. Remove this entry when `plan` ships in a stable release.
 - **Gemini `description` gap:** The `description` field appears in the extension reference docs but is not in the `ExtensionConfig` TypeScript interface. The allowlist includes it based on the documentation.
+- **Pi `!` negation globs:** Pi supports `!`-prefixed exclusion patterns in `package.json` `pi` arrays (e.g., `"!prompts/README.md"`). This behavior is not documented in `pi-readme.md` but is observed in practice. validate.sh skips `!`-prefixed values during path resolution.
 
 ## Previously Fixed Drift
 
