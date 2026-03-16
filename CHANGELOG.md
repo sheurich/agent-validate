@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- SKILL.md frontmatter parsing now uses `js-yaml` + `jq` instead of `awk`
+  for field extraction, correctly handling YAML multi-line scalars (`>`
+  folded and `|` literal) that previously caused false "description too
+  short" warnings
+- Frontmatter is converted to JSON once per file (`npx js-yaml`), then
+  all field access and key enumeration use `jq` — no new binary
+  dependencies; uses the same npm supply chain as every other tool
+- `JS_YAML_VERSION` added to pinned tool versions (default: 4.1.0)
+
+### Fixed
+
+- Broken link checker no longer false-positives on inline code spans
+  containing link-like syntax (e.g. `` `](path)` ``)
+- Malformed YAML frontmatter in SKILL.md now reports a per-file error
+  and continues instead of aborting the validator under `set -euo pipefail`
+- Marketplace test fixture `example-skill` description now includes
+  trigger language, eliminating a quality warning on self-validation
+- 4 new test fixtures: `skill-multiline-folded`, `skill-multiline-literal`,
+  `skill-link-in-code`, `skill-malformed-yaml` (119 total)
+
 ## [1.4.0] - 2026-03-16
 
 ### Added

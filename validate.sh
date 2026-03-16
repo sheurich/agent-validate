@@ -13,6 +13,7 @@
 #   CLAUDE_CODE_VERSION    @anthropic-ai/claude-code version (default: 2.1.69)
 #   GEMINI_CLI_VERSION     @google/gemini-cli version (default: 0.32.1)
 #   TYPESCRIPT_VERSION     typescript version (default: 5.8.3)
+#   JS_YAML_VERSION        js-yaml version (default: 4.1.0)
 
 set -euo pipefail
 
@@ -61,6 +62,7 @@ RUFF_VERSION="${RUFF_VERSION:-0.14.14}"
 CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.69}"
 GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION:-0.32.1}"
 TYPESCRIPT_VERSION="${TYPESCRIPT_VERSION:-5.8.3}"
+JS_YAML_VERSION="${JS_YAML_VERSION:-4.1.0}"
 
 # --- Script location (for bundled defaults) ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -847,21 +849,73 @@ if ! should_skip "skills"; then
 
     if [[ ${#skill_dirs[@]} -gt 0 ]]; then
         info "=== Checking SKILL.md (Agent Skills specification) ==="
+
+        # Verify js-yaml is available before entering the per-file loop.
+        # If unavailable (network/registry), emit one error and skip YAML
+        # parsing entirely — avoids misleading per-file "Malformed YAML"
+        # errors when the real issue is tool availability.
+        js_yaml_available=true
+        if ! echo '{}' | run_npx --yes "js-yaml@${JS_YAML_VERSION}" >/dev/null 2>&1; then
+            echo "Error: js-yaml is not available (npx js-yaml@${JS_YAML_VERSION} failed). Check network/registry." >&2
+            errors=$((errors + 1))
+            js_yaml_available=false
+        fi
+
+        # Collect validated skill names for duplicate detection,
+        # avoiding a second parse pass over every SKILL.md.
+        validated_skill_names=()
+
         while IFS= read -r -d '' skill_file; do
             skill_dir=$(dirname "$skill_file")
             folder_name=$(basename "$skill_dir")
 
-            # Extract all frontmatter lines between --- delimiters
-            frontmatter=$(awk '/^---$/{if(++c==2)exit; next} c==1{print}' "$skill_file")
+            # Extract raw YAML frontmatter between --- delimiters.
+            # awk isolates the text block; js-yaml converts to JSON so jq
+            # can extract fields — handles multi-line scalars (>, |) that
+            # raw line-matching would miss.
+            frontmatter_yaml=$(awk '/^---$/{if(++c==2)exit; next} c==1{print}' "$skill_file")
+
+            if ! $js_yaml_available; then
+                # Tool unavailable — skip YAML parsing (already reported once above)
+                detail "  Skipping YAML parsing for $skill_file (js-yaml unavailable)"
+                continue
+            fi
+
+            # Convert frontmatter to JSON once; all field access uses jq.
+            # Capture stderr to distinguish parse errors from tool failures.
+
+            fm_stderr_file=$(mktemp)
+            fm_json=$(echo "$frontmatter_yaml" | npx --yes "js-yaml@${JS_YAML_VERSION}" 2>"$fm_stderr_file") || true
+
+            fm_stderr=$(cat "$fm_stderr_file")
+            rm -f "$fm_stderr_file"
+            if [[ -z "$fm_json" ]]; then
+                if [[ -n "$fm_stderr" ]]; then
+                    echo "Error: Failed to parse YAML frontmatter in $skill_file" >&2
+                    detail "  $fm_stderr"
+                else
+                    echo "Error: Empty YAML frontmatter in $skill_file" >&2
+                fi
+                errors=$((errors + 1))
+                continue
+            fi
+            if ! echo "$fm_json" | jq -e 'type == "object"' >/dev/null 2>&1; then
+                echo "Error: YAML frontmatter is not a mapping in $skill_file" >&2
+                errors=$((errors + 1))
+                continue
+            fi
 
             # --- name: required ---
             # Ref: agentskills-specification.mdx L49 (name: required)
-            fm_name=$(echo "$frontmatter" | awk '/^name:/{sub(/^name:[[:space:]]*/, ""); print; exit}')
+            fm_name=$(echo "$fm_json" | jq -r '.name // ""')
             if [[ -z "$fm_name" ]]; then
                 echo "Error: No frontmatter 'name' in $skill_file" >&2
                 errors=$((errors + 1))
                 continue
             fi
+
+            # Collect for duplicate detection (avoids re-parsing)
+            validated_skill_names+=("$fm_name")
 
             # Name format: max 64 chars
             # Ref: agentskills-specification.mdx L49,L59 (max 64 characters)
@@ -906,7 +960,7 @@ if ! should_skip "skills"; then
 
             # --- description: required, non-empty, max 1024 chars ---
             # Ref: agentskills-specification.mdx L50 (max 1024 chars, non-empty)
-            fm_desc=$(echo "$frontmatter" | awk '/^description:/{sub(/^description:[[:space:]]*/, ""); print; exit}')
+            fm_desc=$(echo "$fm_json" | jq -r '.description // ""')
             if [[ -z "$fm_desc" ]]; then
                 echo "Error: No frontmatter 'description' (or empty value) in $skill_file" >&2
                 errors=$((errors + 1))
@@ -917,7 +971,7 @@ if ! should_skip "skills"; then
 
             # --- compatibility: max 500 chars if present ---
             # Ref: agentskills-specification.mdx L52 (max 500 characters)
-            fm_compat=$(echo "$frontmatter" | awk '/^compatibility:/{sub(/^compatibility:[[:space:]]*/, ""); print; exit}')
+            fm_compat=$(echo "$fm_json" | jq -r '.compatibility // ""')
             if [[ -n "$fm_compat" && ${#fm_compat} -gt 500 ]]; then
                 echo "Error: Compatibility exceeds 500-char limit (${#fm_compat} chars) in $skill_file" >&2
                 errors=$((errors + 1))
@@ -936,7 +990,7 @@ if ! should_skip "skills"; then
                         errors=$((errors + 1))
                     fi
                 fi
-            done < <(echo "$frontmatter" | grep -E '^[a-zA-Z]' | sed 's/:.*//')
+            done < <(echo "$fm_json" | jq -r 'keys[]')
 
             # --- Quality: description too short ---
             if [[ -n "$fm_desc" && ${#fm_desc} -lt 20 ]]; then
@@ -961,21 +1015,23 @@ if ! should_skip "skills"; then
                 fi
 
                 # Check for broken local links in body
+                # Strip inline code spans (``...`` then `...`) before extracting
+                # links to avoid false positives on examples like `](path)`.
+                # shellcheck disable=SC2016  # backtick patterns are literal sed matches
                 while IFS= read -r link_target; do
                     [[ -z "$link_target" ]] && continue
                     if [[ ! -e "$skill_dir/$link_target" ]]; then
                         echo "Warning: Broken link target '$link_target' in $skill_file" >&2
                     fi
-                done < <(echo "$skill_body" | grep -oE '\]\(([^)]+)\)' | sed 's/\](//' | sed 's/)//' \
+                done < <(echo "$skill_body" | sed 's/``[^`]*``//g' | sed 's/`[^`]*`//g' \
+                    | grep -oE '\]\(([^)]+)\)' | sed 's/\](//' | sed 's/)//' \
                     | grep -vE '^(https?://|mailto:|#)' | sed 's/#.*//' | grep -v '^$')
             fi
 
         done < <(find -P "${skill_dirs[@]}" -name "SKILL.md" -print0)
 
         info "=== Checking for duplicate skill names ==="
-        dupes=$(find -P "${skill_dirs[@]}" -name "SKILL.md" -print0 | xargs -0 -I{} \
-            awk '/^---$/{if(++c==2)exit} c==1 && /^name:/{sub(/^name:[[:space:]]*/, ""); print}' {} \
-            | sort | uniq -d)
+        dupes=$(printf '%s\n' "${validated_skill_names[@]}" | sort | uniq -d)
         if [[ -n "$dupes" ]]; then
             echo "Error: Duplicate skill names found:" >&2
             echo "$dupes" >&2
@@ -1121,8 +1177,16 @@ if $CHECK_DEPLOY; then
             for sd in skills .agents/skills .claude/skills .opencode/skills; do
                 [[ -d "$sd" ]] || continue
                 while IFS= read -r -d '' skill_file; do
-                    fm_name=$(awk '/^---$/{if(++c==2)exit; next} c==1 && /^name:/{sub(/^name:[[:space:]]*/, ""); print; exit}' "$skill_file")
-                    [[ -n "$fm_name" ]] && deploy_ge_skill_names+=("$fm_name")
+
+                    deploy_err_file=$(mktemp)
+                    fm_name=$(awk '/^---$/{if(++c==2)exit; next} c==1{print}' "$skill_file" | npx --yes "js-yaml@${JS_YAML_VERSION}" 2>"$deploy_err_file" | jq -r '.name // empty' 2>>"$deploy_err_file") || true
+                    if [[ -n "$fm_name" ]]; then
+                        deploy_ge_skill_names+=("$fm_name")
+                    else
+                        echo "Warning: Could not extract skill name from $skill_file" >&2
+                        detail "  $(cat "$deploy_err_file")"
+                    fi
+                    rm -f "$deploy_err_file"
                 done < <(find -P "$sd" -name "SKILL.md" -print0)
             done
             if [[ ${#deploy_ge_skill_names[@]} -gt 0 ]]; then
@@ -1157,8 +1221,16 @@ if $CHECK_DEPLOY; then
     for sd in skills .agents/skills .claude/skills .opencode/skills; do
         [[ -d "$sd" ]] || continue
         while IFS= read -r -d '' skill_file; do
-            fm_name=$(awk '/^---$/{if(++c==2)exit; next} c==1 && /^name:/{sub(/^name:[[:space:]]*/, ""); print; exit}' "$skill_file")
-            [[ -n "$fm_name" ]] && deploy_skill_names+=("$fm_name")
+
+            deploy_err_file=$(mktemp)
+            fm_name=$(awk '/^---$/{if(++c==2)exit; next} c==1{print}' "$skill_file" | npx --yes "js-yaml@${JS_YAML_VERSION}" 2>"$deploy_err_file" | jq -r '.name // empty' 2>>"$deploy_err_file") || true
+            if [[ -n "$fm_name" ]]; then
+                deploy_skill_names+=("$fm_name")
+            else
+                echo "Warning: Could not extract skill name from $skill_file" >&2
+                detail "  $(cat "$deploy_err_file")"
+            fi
+            rm -f "$deploy_err_file"
         done < <(find -P "$sd" -name "SKILL.md" -print0)
     done
 

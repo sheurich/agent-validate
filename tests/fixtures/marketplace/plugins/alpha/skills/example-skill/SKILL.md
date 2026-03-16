@@ -1,6 +1,6 @@
 ---
 name: example-skill
-description: An example skill for testing
+description: Use when testing marketplace skill discovery.
 ---
 
 # Example Skill
