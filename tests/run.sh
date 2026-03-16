@@ -447,6 +447,81 @@ assert_pass_stderr "skill-broken-link: warns about broken local link" \
     "Broken link target" \
     "$FIXTURES/skill-broken-link" --skip "$SKIP_EXTERNAL,crosscheck"
 
+# Verify inline-code link syntax is not mistaken for a real broken link
+test_link_in_code() {
+    local name="skill-link-in-code: inline code ](path) does not trigger broken link warning"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local stderr_output exit_code=0
+    stderr_output=$("$VALIDATE" --skip "$SKIP_EXTERNAL,crosscheck" "$FIXTURES/skill-link-in-code" 2>&1 >/dev/null) || exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        echo "FAIL: $name (expected pass, got exit $exit_code)" >&2
+        failed=$((failed + 1))
+    elif echo "$stderr_output" | grep -q "Broken link target"; then
+        echo "FAIL: $name (false positive: inline code link flagged as broken)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    else
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    fi
+}
+test_link_in_code
+
+# --- Multi-line YAML scalar handling (js-yaml + jq) ---
+
+# These must assert the ABSENCE of "Description is only" warnings, not just
+# exit 0 — the original bug produced warnings that didn't affect exit code.
+test_multiline_folded() {
+    local name="skill-multiline-folded: folded scalar (>) description parsed correctly"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local stderr_output exit_code=0
+    stderr_output=$("$VALIDATE" --skip "$SKIP_EXTERNAL,crosscheck" "$FIXTURES/skill-multiline-folded" 2>&1 >/dev/null) || exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        echo "FAIL: $name (expected pass, got exit $exit_code)" >&2
+        failed=$((failed + 1))
+    elif echo "$stderr_output" | grep -q "Description is only"; then
+        echo "FAIL: $name (false positive: folded scalar triggered short-description warning)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    else
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    fi
+}
+test_multiline_folded
+
+test_multiline_literal() {
+    local name="skill-multiline-literal: literal scalar (|) description parsed correctly"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local stderr_output exit_code=0
+    stderr_output=$("$VALIDATE" --skip "$SKIP_EXTERNAL,crosscheck" "$FIXTURES/skill-multiline-literal" 2>&1 >/dev/null) || exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        echo "FAIL: $name (expected pass, got exit $exit_code)" >&2
+        failed=$((failed + 1))
+    elif echo "$stderr_output" | grep -q "Description is only"; then
+        echo "FAIL: $name (false positive: literal scalar triggered short-description warning)" >&2
+        echo "  Got: $stderr_output" >&2
+        failed=$((failed + 1))
+    else
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    fi
+}
+test_multiline_literal
+
+assert_fail_stderr "skill-malformed-yaml: reports malformed YAML frontmatter instead of aborting" \
+    "Failed to parse YAML frontmatter" \
+    "$FIXTURES/skill-malformed-yaml" --skip "$SKIP_EXTERNAL,crosscheck"
+
 # --- P0 #3: Malformed JSON in crosscheck ---
 
 assert_fail_stderr "crosscheck-malformed-json: reports invalid JSON instead of crashing" \
