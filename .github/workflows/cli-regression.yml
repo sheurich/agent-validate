@@ -68,7 +68,7 @@ jobs:
           # ── Claude Code: claude plugin validate ──────────────────────
           if [[ "${{ matrix.platform }}" == "claude" ]]; then
             claude_validate() {
-              npx --yes "@anthropic-ai/claude-code@2.1.69" plugin validate "$@"
+              npx --yes "@anthropic-ai/claude-code@2.1.76" plugin validate "$@"
             }
 
             run_case \
@@ -144,7 +144,7 @@ jobs:
           elif [[ "${{ matrix.platform }}" == "gemini" ]]; then
             gemini_validate() {
               GEMINI_API_KEY="not-a-real-key" \
-                npx --yes "@google/gemini-cli@0.32.1" extensions validate "$@"
+                npx --yes "@google/gemini-cli@0.33.1" extensions validate "$@"
             }
 
             run_case \
