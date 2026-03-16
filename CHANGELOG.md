@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Bumped `@anthropic-ai/claude-code` from 2.1.69 to 2.1.76
+- Bumped `@google/gemini-cli` from 0.32.1 to 0.33.1
+- Re-vendored upstream specs for pi-mono, gemini-cli, agentskills,
+  and Claude plugin-marketplaces docs
+- Added `migratedTo` to the Gemini extension field allowlist (new
+  upstream field for repository migration)
+- Added `gemini-migrated-to` test fixture (120 tests total)
+
 ## [1.5.0] - 2026-03-16
 
 ### Changed
