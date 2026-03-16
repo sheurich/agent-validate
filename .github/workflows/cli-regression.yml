@@ -121,6 +121,22 @@ jobs:
               fail \
               sref_validate tests/fixtures/skill-unknown-field/skills/unknown-field
 
+            # Quality-warning fixtures: valid per spec, should pass skills-ref
+            run_case \
+              "skill-description-short/short-desc → valid (quality warning only)" \
+              pass \
+              sref_validate tests/fixtures/skill-description-short/skills/short-desc
+
+            run_case \
+              "skill-body-empty/empty-body → valid (quality warning only)" \
+              pass \
+              sref_validate tests/fixtures/skill-body-empty/skills/empty-body
+
+            run_case \
+              "skill-description-no-when/no-when → valid (quality warning only)" \
+              pass \
+              sref_validate tests/fixtures/skill-description-no-when/skills/no-when
+
           # ── Gemini CLI: gemini extensions validate ─────────────────
           # NOTE: Gemini CLI ≥0.31.0 requires auth config to launch, even
           # for offline subcommands like `extensions validate`.  A dummy

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- SKILL.md quality warnings (all non-blocking):
+  - Description too short (<20 chars)
+  - Description missing trigger language ("use when", "use for", etc.)
+  - Empty body after frontmatter
+  - Body exceeds 500 lines
+  - Broken local link targets in body
+- 5 new test fixtures and assertions (113 total)
+
 ## [1.3.0] - 2026-03-05
 
 ### Added

@@ -392,6 +392,28 @@ assert_pass "skill-discovery-paths: discovers skills in .agents/ .claude/ .openc
 assert_pass "skill-all-fields: all allowed frontmatter fields pass" \
     "$FIXTURES/skill-all-fields" --skip "$SKIP_EXTERNAL,crosscheck"
 
+# --- Quality: SKILL.md description and body checks ---
+
+assert_pass_stderr "skill-description-short: warns about short description" \
+    "Description is only.*chars.*consider" \
+    "$FIXTURES/skill-description-short" --skip "$SKIP_EXTERNAL,crosscheck"
+
+assert_pass_stderr "skill-description-no-when: warns about missing trigger language" \
+    "Description lacks trigger language" \
+    "$FIXTURES/skill-description-no-when" --skip "$SKIP_EXTERNAL,crosscheck"
+
+assert_pass_stderr "skill-body-empty: warns about empty body" \
+    "body is empty" \
+    "$FIXTURES/skill-body-empty" --skip "$SKIP_EXTERNAL,crosscheck"
+
+assert_pass_stderr "skill-body-too-long: warns about body >500 lines" \
+    "body is.*lines.*recommended" \
+    "$FIXTURES/skill-body-too-long" --skip "$SKIP_EXTERNAL,crosscheck"
+
+assert_pass_stderr "skill-broken-link: warns about broken local link" \
+    "Broken link target" \
+    "$FIXTURES/skill-broken-link" --skip "$SKIP_EXTERNAL,crosscheck"
+
 # --- P0 #3: Malformed JSON in crosscheck ---
 
 assert_fail_stderr "crosscheck-malformed-json: reports invalid JSON instead of crashing" \

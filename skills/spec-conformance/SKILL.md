@@ -54,6 +54,13 @@ Optional frontmatter: `license`, `compatibility`, `metadata`, `allowed-tools`.
 - Scans: `skills/`, `.agents/skills/`, `.claude/skills/`, `.opencode/skills/`, `plugins/*/skills/`
 - Duplicate name detection across all discovered skills
 
+**Quality warnings** (non-blocking, all emit `Warning:` to stderr):
+- Description shorter than 20 characters — probably too terse for agent matching
+- Description missing trigger language (`use when`, `use for`, `use if`, `use this`, `when you need`, `invoke when`, `trigger when`, `designed for`) — the spec recommends describing both *what* and *when*
+- Body empty after frontmatter — a skill with no instructions is useless
+- Body exceeds 500 lines — the spec recommends keeping skills concise
+- Broken local link targets in body — relative `](path)` links that don't resolve from the skill directory (URLs and fragment-only links are excluded)
+
 ### Claude Code plugin.json
 
 **Source:** `https://code.claude.com/docs/en/plugins-reference.md`
