@@ -461,7 +461,8 @@ if ! should_skip "crosscheck"; then
 
     # Field allowlist for gemini-extension.json (used by root and sub-plugin checks)
     # Ref: gemini-extension-config.ts L24-L48 (ExtensionConfig interface fields)
-    # Ref: gemini-extension-reference.md L142 (description field, not in interface)
+    # Ref: gemini-extension-reference.md L140 (description field, not in interface)
+    # Ref: gemini-extension-reference.md L142-L144 (migratedTo field)
     # NOTE: "description" is in the reference docs but not the TS interface.
     gemini_allowed_fields='["name","version","description","mcpServers","contextFileName","excludeTools","settings","themes","plan","migratedTo"]'
 
