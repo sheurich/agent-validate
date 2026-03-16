@@ -93,6 +93,36 @@ assert_pass_stderr() {
     fi
 }
 
+assert_pass_verbose() {
+    local name="$1" expected_pattern="$2" dir="$3"
+    shift 3
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local stdout_file stderr_file exit_code=0
+    stdout_file=$(mktemp)
+    stderr_file=$(mktemp)
+    "$VALIDATE" --verbose "$@" "$dir" >"$stdout_file" 2>"$stderr_file" || exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        echo "FAIL: $name (expected pass, got exit $exit_code)" >&2
+        [[ -s "$stderr_file" ]] && echo "  stderr: $(cat "$stderr_file")" >&2
+        rm -f "$stdout_file" "$stderr_file"
+        failed=$((failed + 1))
+        return
+    fi
+    if grep -qE "$expected_pattern" "$stdout_file"; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name (--verbose stdout missing pattern: $expected_pattern)" >&2
+        echo "  stdout: $(cat "$stdout_file")" >&2
+        [[ -s "$stderr_file" ]] && echo "  stderr: $(cat "$stderr_file")" >&2
+        failed=$((failed + 1))
+    fi
+    rm -f "$stdout_file" "$stderr_file"
+}
+
 # Skip checks that require npm/claude/gemini CLI tools in CI-less environments.
 # The structural checks (crosscheck, skills, allowlist) are the ones we test.
 SKIP_EXTERNAL="json,yaml,markdown,shell,python,claude,gemini,pi,codex,opencode"
@@ -226,6 +256,9 @@ assert_pass "pi-url-fields: URL values in pi.video/pi.image are not treated as p
 assert_fail_stderr "pi-url-in-extensions: URL in pi.extensions is still rejected" \
     "pi path does not resolve" \
     "$FIXTURES/pi-url-in-extensions" --skip "json,yaml,markdown,shell,python,claude,gemini,codex,opencode,crosscheck,skills"
+
+assert_pass "pi-negation-glob: ! exclusion globs are not treated as paths" \
+    "$FIXTURES/pi-negation-glob" --skip "json,yaml,markdown,shell,python,claude,gemini,codex,opencode,crosscheck,skills"
 
 # --- Item 2: Marketplace enumeration logic ---
 
@@ -368,15 +401,15 @@ assert_fail_stderr "skill-unknown-field: rejects unknown frontmatter field" \
     "Unexpected frontmatter field.*bogus" \
     "$FIXTURES/skill-unknown-field" --skip "$SKIP_EXTERNAL,crosscheck"
 
-assert_pass_stderr "skill-user-invocable: accepts user-invocable with portability warning" \
+assert_pass_verbose "skill-user-invocable: accepts user-invocable with portability warning" \
     "user-invocable.*not part of the Agent Skills specification" \
     "$FIXTURES/skill-user-invocable" --skip "$SKIP_EXTERNAL,crosscheck"
 
-assert_pass_stderr "skill-argument-hint: accepts argument-hint with portability warning" \
+assert_pass_verbose "skill-argument-hint: accepts argument-hint with portability warning" \
     "argument-hint.*not part of the Agent Skills specification" \
     "$FIXTURES/skill-argument-hint" --skip "$SKIP_EXTERNAL,crosscheck"
 
-assert_pass_stderr "skill-disable-model-invocation: accepts disable-model-invocation with portability warning" \
+assert_pass_verbose "skill-disable-model-invocation: accepts disable-model-invocation with portability warning" \
     "disable-model-invocation.*not part of the Agent Skills specification" \
     "$FIXTURES/skill-disable-model-invocation" --skip "$SKIP_EXTERNAL,crosscheck"
 

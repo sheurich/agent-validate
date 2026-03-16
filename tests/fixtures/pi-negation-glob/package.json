@@ -1,0 +1,9 @@
+{
+  "name": "test-pi-negation",
+  "version": "1.0.0",
+  "description": "Pi package with negation exclusion globs",
+  "pi": {
+    "prompts": ["prompts", "!prompts/README.md"]
+  },
+  "keywords": ["pi-package"]
+}

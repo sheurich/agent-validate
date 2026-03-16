@@ -215,7 +215,7 @@ if ! should_skip "json"; then
     json_files=()
     while IFS= read -r -d '' f; do
         json_files+=("$f")
-    done < <(find -P . -name "*.json" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -not -path "./vendor/*" -print0)
+    done < <(find -P . -name "*.json" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -not -path "*/vendor/*" -print0)
     if [[ ${#json_files[@]} -gt 0 ]]; then
         printf '%s\0' "${json_files[@]}" | xargs -0 -n1 npx --yes "jsonlint-mod@${JSONLINT_VERSION}" -q || errors=$((errors + 1))
     else
@@ -228,7 +228,7 @@ if ! should_skip "yaml"; then
     yaml_files=()
     while IFS= read -r -d '' f; do
         yaml_files+=("$f")
-    done < <(find -P . \( -name "*.yml" -o -name "*.yaml" \) -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -not -path "./vendor/*" -print0)
+    done < <(find -P . \( -name "*.yml" -o -name "*.yaml" \) -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -not -path "*/vendor/*" -print0)
     if [[ ${#yaml_files[@]} -gt 0 ]]; then
         # Use system yamllint if available (e.g. pip install in CI), otherwise uvx
         yamllint_cmd=(uvx "yamllint@${YAMLLINT_VERSION}")
@@ -257,7 +257,7 @@ if ! should_skip "shell"; then
         shell_files=()
         while IFS= read -r -d '' f; do
             shell_files+=("$f")
-        done < <(find -P . -name "*.sh" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "./vendor/*" -print0)
+        done < <(find -P . -name "*.sh" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/vendor/*" -print0)
         if [[ ${#shell_files[@]} -gt 0 ]]; then
             printf '%s\0' "${shell_files[@]}" | xargs -0 shellcheck || errors=$((errors + 1))
         else
@@ -271,7 +271,7 @@ if ! should_skip "python"; then
     py_files=()
     while IFS= read -r -d '' f; do
         py_files+=("$f")
-    done < <(find -P . -name "*.py" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -not -path "./vendor/*" -print0)
+    done < <(find -P . -name "*.py" -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" -not -path "*/site-packages/*" -not -path "*/vendor/*" -print0)
     if [[ ${#py_files[@]} -gt 0 ]]; then
         # Use system ruff if available, otherwise uvx
         ruff_cmd=(uvx "ruff@${RUFF_VERSION}")
@@ -364,6 +364,12 @@ if ! should_skip "pi"; then
                 if [[ "$pi_key" == "video" || "$pi_key" == "image" ]] && [[ "$pi_path" =~ ^https?:// ]]; then
                     continue
                 fi
+                # Skip negation/exclusion globs (Pi uses ! prefix to exclude paths)
+                # Not documented in pi-readme.md; observed Pi behavior consistent
+                # with standard glob negation (e.g., "!prompts/README.md").
+                if [[ "$pi_path" == !* ]]; then
+                    continue
+                fi
                 if [[ ! -e "$pi_path" ]]; then
                     echo "Error: package.json pi path does not resolve: $pi_path" >&2
                     errors=$((errors + 1))
@@ -384,7 +390,7 @@ if ! should_skip "pi"; then
         ts_files=()
         while IFS= read -r -d '' f; do
             ts_files+=("$f")
-        done < <(find -P . -path "./extensions/*.ts" -not -path "./node_modules/*" -not -path "./vendor/*" -print0 2>/dev/null)
+        done < <(find -P . -path "./extensions/*.ts" -not -path "./node_modules/*" -not -path "*/vendor/*" -print0 2>/dev/null)
         if [[ ${#ts_files[@]} -gt 0 ]]; then
             if command -v npx >/dev/null 2>&1; then
                 info "Checking TypeScript syntax in extensions/"
@@ -924,7 +930,7 @@ if ! should_skip "skills"; then
                 # Check against spec allowlist
                 if ! echo " $allowed_fm_fields " | grep -q " $field_name "; then
                     if echo " $known_extensions " | grep -q " $field_name "; then
-                        echo "Warning: '$field_name' is not part of the Agent Skills specification; may not be portable across agents ($skill_file)" >&2
+                        detail "Warning: '$field_name' is not part of the Agent Skills specification; may not be portable across agents ($skill_file)"
                     else
                         echo "Error: Unexpected frontmatter field '$field_name' in $skill_file (allowed: $allowed_fm_fields)" >&2
                         errors=$((errors + 1))
