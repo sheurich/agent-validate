@@ -163,42 +163,50 @@ new_gemini_sha=$(git_head_sha "https://github.com/google-gemini/gemini-cli.git")
 new_agentskills_sha=$(git_head_sha "https://github.com/agentskills/agentskills.git")
 
 # Sync each upstream source.
+# Returns 0 on success (whether current or updated), 1 if fetch failed.
 sync_spec() {
     local label="$1" cur_sha="$2" new_sha="$3" url="$4" local_file="$5"
     if [[ "$cur_sha" == "$new_sha" ]]; then
         info "$label: current"
         return 0
     fi
-    info "$label: ${cur_sha:0:7} → ${new_sha:0:7}"
-    changed "$label ${cur_sha:0:7} → ${new_sha:0:7}"
     if ! $DRY_RUN; then
         if ! curl -fsSL "$url" -o "$local_file"; then
             echo "Warning: failed to fetch $label, skipping" >&2
+            return 1
         fi
     fi
+    info "$label: ${cur_sha:0:7} → ${new_sha:0:7}"
+    changed "$label ${cur_sha:0:7} → ${new_sha:0:7}"
 }
 
+# Track per-repo fetch success — only update SHA pins when all files downloaded.
+pi_ok=true
 sync_spec "pi-mono (README)" "$cur_pi_sha" "$new_pi_sha" \
     "${GH_RAW}/badlogic/pi-mono/${new_pi_sha}/packages/coding-agent/README.md" \
-    "$REFS_DIR/pi-readme.md"
+    "$REFS_DIR/pi-readme.md" || pi_ok=false
 sync_spec "pi-mono (skills.md)" "$cur_pi_sha" "$new_pi_sha" \
     "${GH_RAW}/badlogic/pi-mono/${new_pi_sha}/packages/coding-agent/docs/skills.md" \
-    "$REFS_DIR/pi-skills.md"
+    "$REFS_DIR/pi-skills.md" || pi_ok=false
+
+gemini_spec_ok=true
 sync_spec "gemini-cli (reference.md)" "$cur_gemini_sha" "$new_gemini_sha" \
     "${GH_RAW}/google-gemini/gemini-cli/${new_gemini_sha}/docs/extensions/reference.md" \
-    "$REFS_DIR/gemini-extension-reference.md"
+    "$REFS_DIR/gemini-extension-reference.md" || gemini_spec_ok=false
 sync_spec "gemini-cli (extension.ts)" "$cur_gemini_sha" "$new_gemini_sha" \
     "${GH_RAW}/google-gemini/gemini-cli/${new_gemini_sha}/packages/cli/src/config/extension.ts" \
-    "$REFS_DIR/gemini-extension-config.ts"
+    "$REFS_DIR/gemini-extension-config.ts" || gemini_spec_ok=false
+
+agentskills_ok=true
 sync_spec "agentskills (specification)" "$cur_agentskills_sha" "$new_agentskills_sha" \
     "${GH_RAW}/agentskills/agentskills/${new_agentskills_sha}/docs/specification.mdx" \
-    "$REFS_DIR/agentskills-specification.mdx"
+    "$REFS_DIR/agentskills-specification.mdx" || agentskills_ok=false
 
-# Update SHA pins in spec-freshness.yml.
+# Update SHA pins only when all files for that repo were fetched.
 if ! $DRY_RUN; then
-    sed_inplace "s|PI_MONO_SHA: \"${cur_pi_sha}\"|PI_MONO_SHA: \"${new_pi_sha}\"|" "$FRESHNESS"
-    sed_inplace "s|GEMINI_CLI_SHA: \"${cur_gemini_sha}\"|GEMINI_CLI_SHA: \"${new_gemini_sha}\"|" "$FRESHNESS"
-    sed_inplace "s|AGENTSKILLS_SHA: \"${cur_agentskills_sha}\"|AGENTSKILLS_SHA: \"${new_agentskills_sha}\"|" "$FRESHNESS"
+    $pi_ok && sed_inplace "s|PI_MONO_SHA: \"${cur_pi_sha}\"|PI_MONO_SHA: \"${new_pi_sha}\"|" "$FRESHNESS"
+    $gemini_spec_ok && sed_inplace "s|GEMINI_CLI_SHA: \"${cur_gemini_sha}\"|GEMINI_CLI_SHA: \"${new_gemini_sha}\"|" "$FRESHNESS"
+    $agentskills_ok && sed_inplace "s|AGENTSKILLS_SHA: \"${cur_agentskills_sha}\"|AGENTSKILLS_SHA: \"${new_agentskills_sha}\"|" "$FRESHNESS"
 fi
 
 # Claude specs — no SHA pin, always re-fetch and compare by hash.
@@ -232,9 +240,10 @@ ts_file="$REFS_DIR/gemini-extension-config.ts"
 if [[ -f "$ts_file" ]]; then
     # Extract top-level field names from ExtensionConfig interface.
     # Only match lines indented exactly one level (2 spaces) to skip nested
-    # fields like plan.directory.
+    # fields like plan.directory.  Uses POSIX ERE character classes for
+    # portability (no \w or \s).
     fields=$(sed -n '/^export interface ExtensionConfig/,/^}/p' "$ts_file" \
-        | grep -E '^  [a-z]\w*[\?]?\s*:' \
+        | grep -E '^  [a-z][a-zA-Z0-9_]*[?]?[[:space:]]*:' \
         | sed 's/^[[:space:]]*//; s/[?]*[[:space:]]*:.*//' \
         | sort)
     # Always include "description" (in reference docs but not TS interface).
@@ -284,6 +293,12 @@ else
     echo "📝 ${#changes[@]} update(s) applied."
 fi
 
+# Check if any spec files were re-vendored (line number refs may need updating).
+has_spec_changes=false
+for c in "${changes[@]}"; do
+    case "$c" in *"→"*) has_spec_changes=true ;; esac
+done
+
 # Write PR body summary.
 {
     echo "## Automated version bump and spec sync"
@@ -293,6 +308,12 @@ fi
     for c in "${changes[@]}"; do
         echo "- $c"
     done
+    if $has_spec_changes; then
+        echo ""
+        echo "**Manual check recommended:** re-vendored spec files may shift"
+        echo "\`# Ref:\` line numbers cited in \`validate.sh\` and"
+        echo "\`skills/spec-conformance/SKILL.md\`. Verify before merging."
+    fi
     echo ""
     echo "All tests passed before PR creation."
 } > "$SUMMARY_FILE"
