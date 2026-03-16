@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-03-16
+
 ### Changed
 
 - SKILL.md frontmatter parsing now uses `js-yaml` + `jq` instead of `awk`
