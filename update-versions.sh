@@ -6,7 +6,10 @@
 # updates to all pinned locations.  Writes a Markdown summary to
 # /tmp/update-summary.md for use as a PR body.
 #
-# Exit 0 if changes were made, 1 if everything is already current.
+# Exit codes:
+#   0  Changes were made (or would be made in --dry-run)
+#   1  Everything is already current
+#   2  Missing required tool or other fatal error
 #
 # Usage:
 #   ./update-versions.sh            # apply updates in-place
@@ -22,6 +25,18 @@ REFS_DIR="$REPO_ROOT/skills/spec-conformance/references"
 SUMMARY_FILE="/tmp/update-summary.md"
 
 changes=()
+
+# --- dependency check -------------------------------------------------------
+
+missing=()
+for cmd in npm git curl jq awk sed; do
+    command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+done
+if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "Error: missing required tools: ${missing[*]}" >&2
+    echo "Install them and retry. On macOS: brew install ${missing[*]}" >&2
+    exit 2
+fi
 
 # --- helpers ----------------------------------------------------------------
 
@@ -64,14 +79,16 @@ new_claude=$(npm_latest "@anthropic-ai/claude-code")
 new_gemini=$(npm_latest "@google/gemini-cli")
 new_skills=$(npm_latest "skills-ref")
 
-declare -A labels=( [claude]="@anthropic-ai/claude-code" [gemini]="@google/gemini-cli" [skills]="skills-ref" )
-declare -A cur_versions=( [claude]="$cur_claude" [gemini]="$cur_gemini" [skills]="$cur_skills" )
-declare -A new_versions=( [claude]="$new_claude" [gemini]="$new_gemini" [skills]="$new_skills" )
+# Use parallel indexed arrays instead of associative arrays (Bash 3.2 compat).
+pkg_names=(claude gemini skills)
+pkg_labels=("@anthropic-ai/claude-code" "@google/gemini-cli" "skills-ref")
+pkg_cur=("$cur_claude" "$cur_gemini" "$cur_skills")
+pkg_new=("$new_claude" "$new_gemini" "$new_skills")
 
-for pkg in claude gemini skills; do
-    cur="${cur_versions[$pkg]}"
-    new="${new_versions[$pkg]}"
-    label="${labels[$pkg]}"
+for i in "${!pkg_names[@]}"; do
+    cur="${pkg_cur[$i]}"
+    new="${pkg_new[$i]}"
+    label="${pkg_labels[$i]}"
     if [[ "$cur" != "$new" ]]; then
         info "$label: $cur → $new"
         changed "$label $cur → $new"
@@ -206,10 +223,8 @@ if [[ -f "$ts_file" ]]; then
                 }
                 { print }
             ' "$REPO_ROOT/validate.sh" > "$REPO_ROOT/validate.sh.tmp" \
-                && cp -p "$REPO_ROOT/validate.sh" "$REPO_ROOT/validate.sh.bak" \
                 && mv "$REPO_ROOT/validate.sh.tmp" "$REPO_ROOT/validate.sh" \
-                && chmod +x "$REPO_ROOT/validate.sh" \
-                && rm -f "$REPO_ROOT/validate.sh.bak"
+                && chmod +x "$REPO_ROOT/validate.sh"
         fi
     else
         info "allowlist: current ($new_allowlist)"
@@ -227,13 +242,17 @@ if [[ ${#changes[@]} -eq 0 ]]; then
     exit 1
 fi
 
-echo "📝 ${#changes[@]} update(s) applied."
+if $DRY_RUN; then
+    echo "🔍 ${#changes[@]} update(s) would be applied (dry-run, no files written)."
+else
+    echo "📝 ${#changes[@]} update(s) applied."
+fi
 
 # Write PR body summary.
 {
     echo "## Automated version bump and spec sync"
     echo ""
-    echo "Updates applied by [\`update-versions.sh\`](../update-versions.sh):"
+    echo "Updates applied by [\`update-versions.sh\`](update-versions.sh):"
     echo ""
     for c in "${changes[@]}"; do
         echo "- $c"

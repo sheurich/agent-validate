@@ -34,10 +34,15 @@ jobs:
       - name: Check for updates
         id: update
         run: |
-          if ./update-versions.sh; then
+          rc=0
+          ./update-versions.sh || rc=$?
+          if [[ "$rc" -eq 0 ]]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
+          elif [[ "$rc" -eq 1 ]]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::update-versions.sh failed with exit code $rc"
+            exit "$rc"
           fi
 
       - name: Run test suite
