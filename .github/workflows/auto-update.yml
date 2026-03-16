@@ -1,0 +1,81 @@
+---
+# Automated version bumps and spec sync.
+#
+# Runs weekly (or on demand). Checks npm for new CLI versions,
+# downloads upstream specs, updates the Gemini field allowlist,
+# runs the test suite, and opens a PR when changes are found.
+
+name: auto-update
+
+on:
+  schedule:
+    - cron: '0 10 * * 1'  # Monday 10 AM UTC (1h after spec-freshness)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.13"
+
+      - name: Check for updates
+        id: update
+        run: |
+          if ./update-versions.sh; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run test suite
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          pip install --quiet yamllint ruff
+          ./tests/run.sh
+
+      - name: Create or update PR
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch="auto-update/weekly"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add -A
+          git commit -m "chore: automated version bump and spec sync"
+          git push -f origin "$branch"
+
+          # Create label if it doesn't exist.
+          gh label create "auto-update" \
+            --color "0E8A16" \
+            --description "Automated version and spec updates" \
+            --force
+
+          # Reuse existing PR or create a new one.
+          existing=$(gh pr list \
+            --head "$branch" \
+            --json number \
+            --jq '.[0].number // empty' 2>/dev/null || true)
+
+          if [[ -n "$existing" ]]; then
+            echo "Updated existing PR #$existing"
+          else
+            gh pr create \
+              --title "chore: automated version bump and spec sync" \
+              --body-file /tmp/update-summary.md \
+              --label "auto-update"
+          fi
