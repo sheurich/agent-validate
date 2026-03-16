@@ -14,12 +14,19 @@
 # Usage:
 #   ./update-versions.sh            # apply updates in-place
 #   ./update-versions.sh --dry-run  # show what would change without writing
+#   ./update-versions.sh --help     # show this header
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 DRY_RUN=false
-[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
+
+case "${1:-}" in
+    --dry-run) DRY_RUN=true ;;
+    --help|-h) sed -n '2,/^$/p' "$0"; exit 0 ;;
+    "") ;;
+    *) echo "Unknown argument: $1" >&2; exit 2 ;;
+esac
 
 REFS_DIR="$REPO_ROOT/skills/spec-conformance/references"
 SUMMARY_FILE="/tmp/update-summary.md"
@@ -44,15 +51,27 @@ info()  { echo "  $*"; }
 changed() { changes+=("$1"); }
 
 # npm_latest PACKAGE
-#   Print the latest version of an npm package.
+#   Print the latest version of an npm package.  Exits 2 on failure.
 npm_latest() {
-    npm view "$1" version 2>/dev/null
+    local ver
+    ver=$(npm view "$1" version 2>/dev/null) || true
+    if [[ -z "$ver" ]]; then
+        echo "Error: failed to fetch npm version for $1" >&2
+        exit 2
+    fi
+    echo "$ver"
 }
 
 # git_head_sha REPO_URL
-#   Print the HEAD SHA of a remote repository.
+#   Print the HEAD SHA of a remote repository.  Exits 2 on failure.
 git_head_sha() {
-    git ls-remote "$1" HEAD 2>/dev/null | awk '{print $1}'
+    local sha
+    sha=$(git ls-remote "$1" HEAD 2>/dev/null | awk '{print $1}') || true
+    if [[ -z "$sha" ]]; then
+        echo "Error: failed to fetch HEAD SHA for $1" >&2
+        exit 2
+    fi
+    echo "$sha"
 }
 
 # sed_inplace EXPRESSION FILE
@@ -65,6 +84,13 @@ sed_inplace() {
     fi
 }
 
+# escape_regex STRING
+#   Escape special regex characters in a string for use in sed patterns.
+escape_regex() {
+    # shellcheck disable=SC2016
+    printf '%s' "$1" | sed 's/[.[\*^$()+?{|\\]/\\&/g'
+}
+
 # --- 1. CLI version bumps ---------------------------------------------------
 
 echo "=== Checking CLI versions ==="
@@ -75,17 +101,19 @@ cur_gemini=$(grep 'GEMINI_CLI_VERSION:-' "$REPO_ROOT/validate.sh" | head -1 \
     | sed 's/.*GEMINI_CLI_VERSION:-//; s/["}].*//')
 cur_skills=$(grep -oE 'skills-ref@[0-9][0-9.]*' "$REPO_ROOT/.github/workflows/cli-regression.yml" | head -1 | sed 's/skills-ref@//')
 
+[[ -z "$cur_claude" ]] && { echo "Error: couldn't extract current claude-code version" >&2; exit 2; }
+[[ -z "$cur_gemini" ]] && { echo "Error: couldn't extract current gemini-cli version" >&2; exit 2; }
+[[ -z "$cur_skills" ]] && { echo "Error: couldn't extract current skills-ref version" >&2; exit 2; }
+
 new_claude=$(npm_latest "@anthropic-ai/claude-code")
 new_gemini=$(npm_latest "@google/gemini-cli")
 new_skills=$(npm_latest "skills-ref")
 
-# Use parallel indexed arrays instead of associative arrays (Bash 3.2 compat).
-pkg_names=(claude gemini skills)
 pkg_labels=("@anthropic-ai/claude-code" "@google/gemini-cli" "skills-ref")
 pkg_cur=("$cur_claude" "$cur_gemini" "$cur_skills")
 pkg_new=("$new_claude" "$new_gemini" "$new_skills")
 
-for i in "${!pkg_names[@]}"; do
+for i in "${!pkg_labels[@]}"; do
     cur="${pkg_cur[$i]}"
     new="${pkg_new[$i]}"
     label="${pkg_labels[$i]}"
@@ -98,19 +126,23 @@ for i in "${!pkg_names[@]}"; do
 done
 
 if ! $DRY_RUN; then
+    esc_cur_claude=$(escape_regex "$cur_claude")
+    esc_cur_gemini=$(escape_regex "$cur_gemini")
+    esc_cur_skills=$(escape_regex "$cur_skills")
+
     # validate.sh — header comments
-    sed_inplace "s|claude-code version (default: ${cur_claude})|claude-code version (default: ${new_claude})|" "$REPO_ROOT/validate.sh"
-    sed_inplace "s|gemini-cli version (default: ${cur_gemini})|gemini-cli version (default: ${new_gemini})|" "$REPO_ROOT/validate.sh"
+    sed_inplace "s|claude-code version (default: ${esc_cur_claude})|claude-code version (default: ${new_claude})|" "$REPO_ROOT/validate.sh"
+    sed_inplace "s|gemini-cli version (default: ${esc_cur_gemini})|gemini-cli version (default: ${new_gemini})|" "$REPO_ROOT/validate.sh"
     # validate.sh — default assignments
-    sed_inplace "s|CLAUDE_CODE_VERSION:-${cur_claude}|CLAUDE_CODE_VERSION:-${new_claude}|" "$REPO_ROOT/validate.sh"
-    sed_inplace "s|GEMINI_CLI_VERSION:-${cur_gemini}|GEMINI_CLI_VERSION:-${new_gemini}|" "$REPO_ROOT/validate.sh"
-    # action.yml — input defaults (target the line after the description)
-    sed_inplace "s|default: \"${cur_claude}\"|default: \"${new_claude}\"|" "$REPO_ROOT/action.yml"
-    sed_inplace "s|default: \"${cur_gemini}\"|default: \"${new_gemini}\"|" "$REPO_ROOT/action.yml"
+    sed_inplace "s|CLAUDE_CODE_VERSION:-${esc_cur_claude}|CLAUDE_CODE_VERSION:-${new_claude}|" "$REPO_ROOT/validate.sh"
+    sed_inplace "s|GEMINI_CLI_VERSION:-${esc_cur_gemini}|GEMINI_CLI_VERSION:-${new_gemini}|" "$REPO_ROOT/validate.sh"
+    # action.yml — input defaults
+    sed_inplace "s|default: \"${esc_cur_claude}\"|default: \"${new_claude}\"|" "$REPO_ROOT/action.yml"
+    sed_inplace "s|default: \"${esc_cur_gemini}\"|default: \"${new_gemini}\"|" "$REPO_ROOT/action.yml"
     # cli-regression.yml — npx pins
-    sed_inplace "s|claude-code@${cur_claude}|claude-code@${new_claude}|g" "$REPO_ROOT/.github/workflows/cli-regression.yml"
-    sed_inplace "s|gemini-cli@${cur_gemini}|gemini-cli@${new_gemini}|g" "$REPO_ROOT/.github/workflows/cli-regression.yml"
-    sed_inplace "s|skills-ref@${cur_skills}|skills-ref@${new_skills}|g" "$REPO_ROOT/.github/workflows/cli-regression.yml"
+    sed_inplace "s|claude-code@${esc_cur_claude}|claude-code@${new_claude}|g" "$REPO_ROOT/.github/workflows/cli-regression.yml"
+    sed_inplace "s|gemini-cli@${esc_cur_gemini}|gemini-cli@${new_gemini}|g" "$REPO_ROOT/.github/workflows/cli-regression.yml"
+    sed_inplace "s|skills-ref@${esc_cur_skills}|skills-ref@${new_skills}|g" "$REPO_ROOT/.github/workflows/cli-regression.yml"
 fi
 
 # --- 2. Upstream spec sync --------------------------------------------------
@@ -140,7 +172,9 @@ sync_spec() {
     info "$label: ${cur_sha:0:7} → ${new_sha:0:7}"
     changed "$label ${cur_sha:0:7} → ${new_sha:0:7}"
     if ! $DRY_RUN; then
-        curl -fsSL "$url" -o "$local_file"
+        if ! curl -fsSL "$url" -o "$local_file"; then
+            echo "Warning: failed to fetch $label, skipping" >&2
+        fi
     fi
 }
 
@@ -171,7 +205,7 @@ fi
 for spec in plugins-reference plugin-marketplaces; do
     remote_url="https://code.claude.com/docs/en/${spec}.md"
     local_file="$REFS_DIR/claude-${spec}.md"
-    tmp_file="/tmp/claude-${spec}.md"
+    tmp_file=$(mktemp "/tmp/claude-${spec}.XXXXXX.md")
 
     if curl -fsSL "$remote_url" -o "$tmp_file" 2>/dev/null; then
         if [[ -f "$local_file" ]] && cmp -s "$tmp_file" "$local_file"; then
@@ -183,10 +217,10 @@ for spec in plugins-reference plugin-marketplaces; do
                 cp "$tmp_file" "$local_file"
             fi
         fi
-        rm -f "$tmp_file"
     else
         info "claude (${spec}.md): fetch failed, skipping"
     fi
+    rm -f "$tmp_file"
 done
 
 # --- 3. Gemini extension field allowlist ------------------------------------
@@ -208,11 +242,13 @@ if [[ -f "$ts_file" ]]; then
     # Format as JSON array.
     new_allowlist=$(echo "$fields" | jq -R . | jq -sc .)
 
-    cur_allowlist=$(grep "gemini_allowed_fields=" "$REPO_ROOT/validate.sh" | head -1 \
+    # Parse current allowlist through jq to normalize order for comparison.
+    cur_allowlist_raw=$(grep "gemini_allowed_fields=" "$REPO_ROOT/validate.sh" | head -1 \
         | sed "s/.*gemini_allowed_fields='//; s/'.*//")
+    cur_allowlist=$(echo "$cur_allowlist_raw" | jq -sc '.[0] | sort' 2>/dev/null || echo "$cur_allowlist_raw")
 
     if [[ "$cur_allowlist" != "$new_allowlist" ]]; then
-        info "allowlist: $cur_allowlist → $new_allowlist"
+        info "allowlist: $cur_allowlist_raw → $new_allowlist"
         changed "Gemini allowlist updated"
         if ! $DRY_RUN; then
             # Use awk for clean replacement — JSON arrays are hard to escape for sed.
