@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   and Claude plugin-marketplaces docs
 - Added `migratedTo` to the Gemini extension field allowlist (new
   upstream field for repository migration)
-- Added `gemini-migrated-to` test fixture (120 tests total)
+- Added `gemini-migrated-to` test fixture
 
 ## [1.5.0] - 2026-03-16
 
