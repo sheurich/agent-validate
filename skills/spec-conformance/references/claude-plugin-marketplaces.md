@@ -23,21 +23,21 @@ Once your marketplace is live, you can update it by pushing changes to your repo
 
 ## Walkthrough: create a local marketplace
 
-This example creates a marketplace with one plugin: a `/review` skill for code reviews. You'll create the directory structure, add a skill, create the plugin manifest and marketplace catalog, then install and test it.
+This example creates a marketplace with one plugin: a `/quality-review` skill for code reviews. You'll create the directory structure, add a skill, create the plugin manifest and marketplace catalog, then install and test it.
 
 <Steps>
   <Step title="Create the directory structure">
     ```bash  theme={null}
     mkdir -p my-marketplace/.claude-plugin
-    mkdir -p my-marketplace/plugins/review-plugin/.claude-plugin
-    mkdir -p my-marketplace/plugins/review-plugin/skills/review
+    mkdir -p my-marketplace/plugins/quality-review-plugin/.claude-plugin
+    mkdir -p my-marketplace/plugins/quality-review-plugin/skills/quality-review
     ```
   </Step>
 
   <Step title="Create the skill">
-    Create a `SKILL.md` file that defines what the `/review` skill does.
+    Create a `SKILL.md` file that defines what the `/quality-review` skill does.
 
-    ```markdown my-marketplace/plugins/review-plugin/skills/review/SKILL.md theme={null}
+    ```markdown my-marketplace/plugins/quality-review-plugin/skills/quality-review/SKILL.md theme={null}
     ---
     description: Review code for bugs, security, and performance
     disable-model-invocation: true
@@ -56,10 +56,10 @@ This example creates a marketplace with one plugin: a `/review` skill for code r
   <Step title="Create the plugin manifest">
     Create a `plugin.json` file that describes the plugin. The manifest goes in the `.claude-plugin/` directory.
 
-    ```json my-marketplace/plugins/review-plugin/.claude-plugin/plugin.json theme={null}
+    ```json my-marketplace/plugins/quality-review-plugin/.claude-plugin/plugin.json theme={null}
     {
-      "name": "review-plugin",
-      "description": "Adds a /review skill for quick code reviews",
+      "name": "quality-review-plugin",
+      "description": "Adds a /quality-review skill for quick code reviews",
       "version": "1.0.0"
     }
     ```
@@ -76,9 +76,9 @@ This example creates a marketplace with one plugin: a `/review` skill for code r
       },
       "plugins": [
         {
-          "name": "review-plugin",
-          "source": "./plugins/review-plugin",
-          "description": "Adds a /review skill for quick code reviews"
+          "name": "quality-review-plugin",
+          "source": "./plugins/quality-review-plugin",
+          "description": "Adds a /quality-review skill for quick code reviews"
         }
       ]
     }
@@ -90,7 +90,7 @@ This example creates a marketplace with one plugin: a `/review` skill for code r
 
     ```shell  theme={null}
     /plugin marketplace add ./my-marketplace
-    /plugin install review-plugin@my-plugins
+    /plugin install quality-review-plugin@my-plugins
     ```
   </Step>
 
@@ -239,7 +239,7 @@ Once a plugin is cloned or copied into the local machine, it is copied into the 
 
 ### Relative paths
 
-For plugins in the same repository:
+For plugins in the same repository, use a path starting with `./`:
 
 ```json  theme={null}
 {
@@ -247,6 +247,8 @@ For plugins in the same repository:
   "source": "./plugins/my-plugin"
 }
 ```
+
+Paths resolve relative to the marketplace root, which is the directory containing `.claude-plugin/`. In the example above, `./plugins/my-plugin` points to `<repo>/plugins/my-plugin`, even though `marketplace.json` lives at `<repo>/.claude-plugin/marketplace.json`. Do not use `../` to climb out of `.claude-plugin/`.
 
 <Note>
   Relative paths only work when users add your marketplace via Git (GitHub, GitLab, or git URL). If users add your marketplace via a direct URL to the `marketplace.json` file, relative paths will not resolve correctly. For URL-based distribution, use GitHub, npm, or git URL sources instead. See [Troubleshooting](#plugins-with-relative-paths-fail-in-url-based-marketplaces) for details.
@@ -310,11 +312,11 @@ You can pin to a specific branch, tag, or commit:
 }
 ```
 
-| Field | Type   | Description                                                           |
-| :---- | :----- | :-------------------------------------------------------------------- |
-| `url` | string | Required. Full git repository URL (must end with `.git`)              |
-| `ref` | string | Optional. Git branch or tag (defaults to repository default branch)   |
-| `sha` | string | Optional. Full 40-character git commit SHA to pin to an exact version |
+| Field | Type   | Description                                                                                                                                              |
+| :---- | :----- | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `url` | string | Required. Full git repository URL (`https://` or `git@`). The `.git` suffix is optional, so Azure DevOps and AWS CodeCommit URLs without the suffix work |
+| `ref` | string | Optional. Git branch or tag (defaults to repository default branch)                                                                                      |
+| `sha` | string | Optional. Full 40-character git commit SHA to pin to an exact version                                                                                    |
 
 ### Git subdirectories
 
@@ -628,6 +630,10 @@ Allow filesystem-based marketplaces from a specific directory using regex patter
 
 Use `".*"` as the `pathPattern` to allow any filesystem path while still controlling network sources with `hostPattern`.
 
+<Note>
+  `strictKnownMarketplaces` restricts what users can add, but does not register marketplaces on its own. To make allowed marketplaces available automatically without users running `/plugin marketplace add`, pair it with [`extraKnownMarketplaces`](/en/settings#extraknownmarketplaces) in the same `managed-settings.json`. See [Using both together](/en/settings#strictknownmarketplaces).
+</Note>
+
 #### How restrictions work
 
 Restrictions are validated early in the plugin installation process, before any network requests or filesystem operations occur. This prevents unauthorized marketplace access attempts.
@@ -772,12 +778,12 @@ For complete plugin testing workflows, see [Test your plugins locally](/en/plugi
 
 Run `claude plugin validate .` or `/plugin validate .` from your marketplace directory to check for issues. Common errors:
 
-| Error                                             | Cause                           | Solution                                                      |
-| :------------------------------------------------ | :------------------------------ | :------------------------------------------------------------ |
-| `File not found: .claude-plugin/marketplace.json` | Missing manifest                | Create `.claude-plugin/marketplace.json` with required fields |
-| `Invalid JSON syntax: Unexpected token...`        | JSON syntax error               | Check for missing commas, extra commas, or unquoted strings   |
-| `Duplicate plugin name "x" found in marketplace`  | Two plugins share the same name | Give each plugin a unique `name` value                        |
-| `plugins[0].source: Path traversal not allowed`   | Source path contains `..`       | Use paths relative to marketplace root without `..`           |
+| Error                                             | Cause                           | Solution                                                                                       |
+| :------------------------------------------------ | :------------------------------ | :--------------------------------------------------------------------------------------------- |
+| `File not found: .claude-plugin/marketplace.json` | Missing manifest                | Create `.claude-plugin/marketplace.json` with required fields                                  |
+| `Invalid JSON syntax: Unexpected token...`        | JSON syntax error               | Check for missing commas, extra commas, or unquoted strings                                    |
+| `Duplicate plugin name "x" found in marketplace`  | Two plugins share the same name | Give each plugin a unique `name` value                                                         |
+| `plugins[0].source: Path contains ".."`           | Source path contains `..`       | Use paths relative to the marketplace root without `..`. See [Relative paths](#relative-paths) |
 
 **Warnings** (non-blocking):
 
