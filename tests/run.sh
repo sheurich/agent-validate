@@ -1343,6 +1343,61 @@ test_skip_parity() {
 }
 test_skip_parity
 
+# Test 6: CHANGELOG ↔ VALIDATE_VERSION consistency
+# The first versioned heading in CHANGELOG.md must match VALIDATE_VERSION
+# in validate.sh, and no version section may contain duplicate subsection
+# headings (### Added appearing twice is a sign of mismerged entries).
+test_version_parity() {
+    local name="version-parity: CHANGELOG latest version matches VALIDATE_VERSION"
+    if [[ -n "$FILTER" ]] && [[ "$name" != *"$FILTER"* ]]; then
+        skipped=$((skipped + 1))
+        return
+    fi
+    local errs=()
+
+    # Extract VALIDATE_VERSION from validate.sh
+    local script_ver
+    script_ver=$(grep -E '^VALIDATE_VERSION=' "$VALIDATE" | head -1 \
+        | sed 's/VALIDATE_VERSION="//;s/"//')
+
+    # Extract first versioned (non-Unreleased) heading from CHANGELOG.md
+    local changelog_ver
+    changelog_ver=$(grep -E '^\#\# \[[0-9]' "$REPO_ROOT/CHANGELOG.md" | head -1 \
+        | sed 's/## \[//;s/\].*//')
+
+    if [[ "$script_ver" != "$changelog_ver" ]]; then
+        errs+=("VALIDATE_VERSION=$script_ver but CHANGELOG latest is $changelog_ver")
+    fi
+
+    # Check for duplicate subsection headings within any version section.
+    # Read CHANGELOG line by line; reset seen-headings at each ## section.
+    local current_section="" seen_headings=""
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^##\  ]]; then
+            current_section="$line"
+            seen_headings=""
+        elif [[ "$line" =~ ^###\  ]]; then
+            local heading="$line"
+            if echo "$seen_headings" | grep -qxF "$heading"; then
+                errs+=("duplicate '$heading' in section '$current_section'")
+            fi
+            seen_headings="${seen_headings}${heading}"$'\n'
+        fi
+    done < "$REPO_ROOT/CHANGELOG.md"
+
+    if [[ ${#errs[@]} -eq 0 ]]; then
+        echo "PASS: $name"
+        passed=$((passed + 1))
+    else
+        echo "FAIL: $name" >&2
+        for e in "${errs[@]}"; do
+            echo "  $e" >&2
+        done
+        failed=$((failed + 1))
+    fi
+}
+test_version_parity
+
 echo ""
 if [[ -n "$FILTER" ]]; then
     echo "=== Results: $passed passed, $failed failed, $skipped skipped (filter: \"$FILTER\") ==="
