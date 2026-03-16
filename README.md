@@ -19,7 +19,7 @@ Cross-agent plugin/extension/skill validation. Works with Claude Code, Gemini CL
 - `package.json` with `.pi` key → path resolution, keyword check, TypeScript syntax
 - `AGENTS.md` / `codex.md` → Codex/OpenCode detection
 
-**Cross-platform** — metadata consistency across manifests (name, version, description), SKILL.md validation per the [Agent Skills specification](https://agentskills.io/docs/specification) (name format, description, frontmatter allowlist, discovery paths), duplicate skill detection.
+**Cross-platform** — metadata consistency across manifests (name, version, description), SKILL.md validation per the [Agent Skills specification](https://agentskills.io/docs/specification) (name format, description, frontmatter allowlist, discovery paths), duplicate skill detection, quality warnings (short/missing-trigger descriptions, empty/oversized body, broken local links).
 
 **Tier 3 — Deployment verification** (opt-in via `--check-deploy`):
 

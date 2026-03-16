@@ -938,6 +938,38 @@ if ! should_skip "skills"; then
                 fi
             done < <(echo "$frontmatter" | grep -E '^[a-zA-Z]' | sed 's/:.*//')
 
+            # --- Quality: description too short ---
+            if [[ -n "$fm_desc" && ${#fm_desc} -lt 20 ]]; then
+                echo "Warning: Description is only ${#fm_desc} chars (consider ≥20 for agent matching) in $skill_file" >&2
+            fi
+
+            # --- Quality: description missing trigger language ---
+            if [[ -n "$fm_desc" ]] && ! echo "$fm_desc" | grep -qiE 'use when|use for|use if|use this|when you need|invoke when|trigger when|designed for'; then
+                echo "Warning: Description lacks trigger language (e.g. 'use when ...') in $skill_file" >&2
+            fi
+
+            # --- Quality: body checks (empty, too long, broken links) ---
+            skill_body=$(awk '/^---$/{if(++c==2){body=1; next}} body{print}' "$skill_file")
+            skill_body_stripped=$(echo "$skill_body" | sed '/^[[:space:]]*$/d')
+
+            if [[ -z "$skill_body_stripped" ]]; then
+                echo "Warning: SKILL.md body is empty (no instructions after frontmatter) in $skill_file" >&2
+            else
+                body_lines=$(echo "$skill_body" | wc -l | tr -d ' ')
+                if [[ "$body_lines" -gt 500 ]]; then
+                    echo "Warning: SKILL.md body is $body_lines lines (recommended <500) in $skill_file" >&2
+                fi
+
+                # Check for broken local links in body
+                while IFS= read -r link_target; do
+                    [[ -z "$link_target" ]] && continue
+                    if [[ ! -e "$skill_dir/$link_target" ]]; then
+                        echo "Warning: Broken link target '$link_target' in $skill_file" >&2
+                    fi
+                done < <(echo "$skill_body" | grep -oE '\]\(([^)]+)\)' | sed 's/\](//' | sed 's/)//' \
+                    | grep -vE '^(https?://|mailto:|#)' | sed 's/#.*//' | grep -v '^$')
+            fi
+
         done < <(find -P "${skill_dirs[@]}" -name "SKILL.md" -print0)
 
         info "=== Checking for duplicate skill names ==="
