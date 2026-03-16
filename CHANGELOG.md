@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-03-16
+
 ### Added
 
 - SKILL.md quality warnings (all non-blocking):
@@ -16,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   - Body exceeds 500 lines
   - Broken local link targets in body
 - 5 new test fixtures and assertions (113 total)
+
+## [1.3.1] - 2026-03-16
+
+### Fixed
+
+- Pi negation globs (e.g. `!prompts/README.md`) no longer cause false
+  path-resolution errors; values starting with `!` are skipped (#8)
+
+### Changed
+
+- Bump `actions/setup-node` from 6.2.0 → 6.3.0 (#6)
+- 1 new test fixture (109 total)
 
 ## [1.3.0] - 2026-03-05
 
@@ -77,6 +91,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Missing skills hub directory now errors when skills are expected (instead of
   silently passing)
 - `action.yml` run step uses args array instead of unquoted variable expansion
+
+## [1.1.0] - 2026-03-04
 
 ### Added
 
