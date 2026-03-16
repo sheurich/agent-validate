@@ -41,6 +41,7 @@ jobs:
           .github/workflows/self-validate.yml
           .github/workflows/spec-freshness.yml
           .github/workflows/cli-regression.yml
+          .github/workflows/auto-update.yml
           .github/dependabot.yml
 
       - name: Lint JSON
