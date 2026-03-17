@@ -230,6 +230,10 @@ assert_fail_stderr "gemini-broken-ctx: detects missing context file" \
 assert_pass "gemini-valid-ctx: valid context file passes" \
     "$FIXTURES/gemini-valid-ctx" --skip "$SKIP_EXTERNAL"
 
+# --- Fixture: gemini-migrated-to ---
+assert_pass "gemini-migrated-to: migratedTo field is accepted" \
+    "$FIXTURES/gemini-migrated-to" --skip "$SKIP_EXTERNAL"
+
 # --- Task 5: Edge cases ---
 
 assert_pass "spaces-in-name: handles filenames with spaces" \

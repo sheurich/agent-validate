@@ -10,8 +10,8 @@
 #   YAMLLINT_VERSION       yamllint version (default: 1.37.0)
 #   MARKDOWNLINT_VERSION   markdownlint-cli version (default: 0.47.0)
 #   RUFF_VERSION           ruff version (default: 0.14.14)
-#   CLAUDE_CODE_VERSION    @anthropic-ai/claude-code version (default: 2.1.69)
-#   GEMINI_CLI_VERSION     @google/gemini-cli version (default: 0.32.1)
+#   CLAUDE_CODE_VERSION    @anthropic-ai/claude-code version (default: 2.1.76)
+#   GEMINI_CLI_VERSION     @google/gemini-cli version (default: 0.33.1)
 #   TYPESCRIPT_VERSION     typescript version (default: 5.8.3)
 #   JS_YAML_VERSION        js-yaml version (default: 4.1.0)
 
@@ -59,8 +59,8 @@ JSONLINT_VERSION="${JSONLINT_VERSION:-1.7.6}"
 YAMLLINT_VERSION="${YAMLLINT_VERSION:-1.37.0}"
 MARKDOWNLINT_VERSION="${MARKDOWNLINT_VERSION:-0.47.0}"
 RUFF_VERSION="${RUFF_VERSION:-0.14.14}"
-CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.69}"
-GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION:-0.32.1}"
+CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.76}"
+GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION:-0.33.1}"
 TYPESCRIPT_VERSION="${TYPESCRIPT_VERSION:-5.8.3}"
 JS_YAML_VERSION="${JS_YAML_VERSION:-4.1.0}"
 
@@ -460,13 +460,11 @@ if ! should_skip "crosscheck"; then
     allowed_fields='["name","description","version","author","keywords","license","repository","homepage","commands","agents","skills","hooks","mcpServers","outputStyles","lspServers"]'
 
     # Field allowlist for gemini-extension.json (used by root and sub-plugin checks)
-    # Ref: gemini-extension-config.ts L24-L44 (ExtensionConfig interface fields)
-    # Ref: gemini-extension-reference.md L139 (description field, not in interface)
+    # Ref: gemini-extension-config.ts L24-L48 (ExtensionConfig interface fields)
+    # Ref: gemini-extension-reference.md L140 (description field, not in interface)
+    # Ref: gemini-extension-reference.md L142-L144 (migratedTo field)
     # NOTE: "description" is in the reference docs but not the TS interface.
-    # NOTE: "plan" is in the main-branch TS interface but not yet shipped in
-    #       the 0.32.1 stable release. Kept in allowlist to avoid false errors
-    #       for extensions targeting HEAD; documented as known drift.
-    gemini_allowed_fields='["name","version","description","mcpServers","contextFileName","excludeTools","settings","themes","plan"]'
+    gemini_allowed_fields='["name","version","description","mcpServers","contextFileName","excludeTools","settings","themes","plan","migratedTo"]'
 
     if [[ -f "$plugin_json" ]]; then
         if ! jq empty "$plugin_json" 2>/dev/null; then

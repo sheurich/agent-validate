@@ -29,7 +29,7 @@ When updating validate.sh for a new upstream spec version:
 **Source:** `https://agentskills.io/docs/specification` / `https://raw.githubusercontent.com/agentskills/agentskills/main/docs/specification.mdx`
 **Reference validator:** `https://github.com/agentskills/agentskills/tree/main/skills-ref`
 **Vendored:** `references/agentskills-specification.mdx`
-**Last verified:** 2026-03-05
+**Last verified:** 2026-03-16
 
 This is the canonical source of truth for SKILL.md validation. The Agent Skills open standard defines:
 
@@ -65,7 +65,7 @@ Optional frontmatter: `license`, `compatibility`, `metadata`, `allowed-tools`.
 
 **Source:** `https://code.claude.com/docs/en/plugins-reference.md`
 **Vendored:** `references/claude-plugins-reference.md`
-**Last verified:** 2026-03-05
+**Last verified:** 2026-03-16
 
 Required fields: `name` only (manifest itself is optional).
 
@@ -79,7 +79,7 @@ Component path fields (all optional): `commands`, `agents`, `skills`, `hooks`, `
 
 **Source:** `https://code.claude.com/docs/en/plugin-marketplaces.md`
 **Vendored:** `references/claude-plugin-marketplaces.md`
-**Last verified:** 2026-03-05
+**Last verified:** 2026-03-16
 
 Required top-level fields: `name`, `owner` (with required `owner.name`), `plugins` array.
 
@@ -100,29 +100,27 @@ Source types: relative paths, GitHub repos (`github:owner/repo`), git URLs, npm 
 **Source:** `https://github.com/google-gemini/gemini-cli/blob/main/docs/extensions/reference.md`
 **TypeScript interface:** `https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/extension.ts`
 **Vendored:** `references/gemini-extension-reference.md`, `references/gemini-extension-config.ts`
-**Last verified:** 2026-03-05
+**Last verified:** 2026-03-16
 
-Interface fields: `name` (string, required), `version` (string, required), `mcpServers` (optional), `contextFileName` (string or string[], optional), `excludeTools` (string[], optional), `settings` (ExtensionSetting[], optional), `themes` (CustomTheme[], optional), `plan` (object with optional `directory`, optional — **see drift note below**).
+Interface fields: `name` (string, required), `version` (string, required), `mcpServers` (optional), `contextFileName` (string or string[], optional), `excludeTools` (string[], optional), `settings` (ExtensionSetting[], optional), `themes` (CustomTheme[], optional), `plan` (object with optional `directory`, optional), `migratedTo` (string, optional — migration URL for repository moves).
 
 Documentation also mentions: `description`, policy engine (`.toml` files in `policies/` directory).
 
 **`description` gap:** The `description` field appears in the reference docs but is NOT in the `ExtensionConfig` TypeScript interface. validate.sh includes it in the allowlist based on the docs.
 
-**`plan` field drift:** The `plan` field is present in the `main`-branch TypeScript interface (`gemini-extension-config.ts`) but is **not yet shipped** in the 0.32.1 stable release. The field is kept in the allowlist to avoid false errors for extensions targeting HEAD. If a future stable release adds it, remove this note.
+**Sub-components:** Gemini CLI supports extension sub-components: `commands/*.toml` (command definitions), `hooks/hooks.json` (lifecycle hooks), `agents/*.md` (agent definitions), `policies/*.toml` (policy rules). validate.sh checks JSON/TOML syntax and agent frontmatter when these directories exist. TOML checks require `taplo` on PATH.
 
-**Sub-components (0.32.1):** Gemini CLI 0.32.1 supports extension sub-components: `commands/*.toml` (command definitions), `hooks/hooks.json` (lifecycle hooks), `agents/*.md` (agent definitions), `policies/*.toml` (policy rules). validate.sh checks JSON/TOML syntax and agent frontmatter when these directories exist. TOML checks require `taplo` on PATH.
-
-**`gemini skills` CLI:** Gemini 0.32.1 introduces first-class `gemini skills list` / `gemini skills install` commands for standalone skill management. validate.sh checks installed skills via `gemini skills list` in Tier 3 deployment verification.
+**`gemini skills` CLI:** Gemini CLI provides `gemini skills list` / `gemini skills install` commands for standalone skill management. validate.sh checks installed skills via `gemini skills list` in Tier 3 deployment verification.
 
 `contextFileName` can be a string or array of strings. If omitted and `GEMINI.md` exists, that file is loaded. When an array, each entry is resolved independently.
 
-**What validate.sh checks:** Cross-checks `name`, `version`, `description` against plugin.json/package.json. Validates `contextFileName` file(s) exist — handles both string and array forms. Validates `name` format (lowercase alphanumeric with dashes). **Field allowlist** covering all `ExtensionConfig` interface fields: `name`, `version`, `description`, `mcpServers`, `contextFileName`, `excludeTools`, `settings`, `themes`, `plan` — rejects any key not in the allowlist. Handles malformed JSON gracefully. Validates sub-component syntax: `hooks/hooks.json` (JSON), `commands/*.toml` and `policies/*.toml` (TOML via taplo), `agents/*.md` (YAML frontmatter). Tier 3 deployment verifies installed skills via `gemini skills list`.
+**What validate.sh checks:** Cross-checks `name`, `version`, `description` against plugin.json/package.json. Validates `contextFileName` file(s) exist — handles both string and array forms. Validates `name` format (lowercase alphanumeric with dashes). **Field allowlist** covering all `ExtensionConfig` interface fields: `name`, `version`, `description`, `mcpServers`, `contextFileName`, `excludeTools`, `settings`, `themes`, `plan`, `migratedTo` — rejects any key not in the allowlist. Handles malformed JSON gracefully. Validates sub-component syntax: `hooks/hooks.json` (JSON), `commands/*.toml` and `policies/*.toml` (TOML via taplo), `agents/*.md` (YAML frontmatter). Tier 3 deployment verifies installed skills via `gemini skills list`.
 
 ### Pi package.json
 
 **Source:** `https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md`
 **Vendored:** `references/pi-readme.md`
-**Last verified:** 2026-03-05
+**Last verified:** 2026-03-16
 
 The `pi` key in package.json can contain: `extensions`, `skills`, `prompts`, `themes` — each a string or array of directory paths. It can also contain `video` and `image` — URL strings for the [package gallery](https://shittycodingagent.ai/packages) preview (not file paths).
 
@@ -136,7 +134,7 @@ Pi packages should include `"keywords": ["pi-package"]` for discovery.
 
 **Source:** `https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/skills.md`
 **Vendored:** `references/pi-skills.md`
-**Last verified:** 2026-03-05
+**Last verified:** 2026-03-16
 
 Pi 0.56.0 documents skill frontmatter in `docs/skills.md`. In addition to the Agent Skills specification fields, Pi recognizes:
 
@@ -180,7 +178,7 @@ Requires `gemini` binary on PATH. Parses `gemini extensions list -o json`.
 Checks:
 - Extension name from gemini-extension.json appears in installed list
 - `.isActive` is true (not just installed)
-- Repo skills are registered via `gemini skills list` (first-class skill management in 0.32.1)
+- Repo skills are registered via `gemini skills list` (first-class skill management)
 
 ### Shared skills hub (~/.agents/skills/)
 
@@ -196,12 +194,13 @@ No CLI needed — checks directory presence. Checks:
 
 ## Known Drift
 
-- **Gemini `plan` field (main vs. stable):** The `plan` field exists in the `main`-branch `ExtensionConfig` TypeScript interface but is not present in Gemini CLI 0.32.1 stable. The allowlist includes `plan` to avoid false errors; extensions targeting `main` will validate correctly. Remove this entry when `plan` ships in a stable release.
 - **Gemini `description` gap:** The `description` field appears in the extension reference docs but is not in the `ExtensionConfig` TypeScript interface. The allowlist includes it based on the documentation.
 - **Pi `!` negation globs:** Pi supports `!`-prefixed exclusion patterns in `package.json` `pi` arrays (e.g., `"!prompts/README.md"`). This behavior is not documented in `pi-readme.md` but is observed in practice. validate.sh skips `!`-prefixed values during path resolution.
 
 ## Previously Fixed Drift
 
+- **Gemini `plan` field shipped (0.33.1)** (2026-03-16): The `plan` field is now present in the stable `ExtensionConfig` interface and reference docs. Drift note removed.
+- **Gemini `migratedTo` field added (0.33.1)** (2026-03-16): New `migratedTo` field for extension repository migration. Added to allowlist with test fixture.
 - **Gemini CLI headless CI regression** (2026-03-05): `extensions validate` exits 41 in headless CI because the CLI gates on auth config before dispatching any subcommand. Fix: `validate.sh` sets `GEMINI_API_KEY` (if unset) to a dummy value before Gemini CLI calls — the validate subcommand never calls the API.
 - **Pi URL false positives** (2026-03-05): `video` and `image` fields in `.pi` are URL strings for the package gallery, not file paths. The jq extraction now skips `https?://` values only for `video`/`image` keys.
 - **`disable-model-invocation` misclassified** (2026-03-05): Pi 0.56.0 documents this SKILL.md frontmatter field in `docs/skills.md`. Previously rejected as an unknown field; now accepted with a portability warning.
