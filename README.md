@@ -113,6 +113,20 @@ The `validate-extra.sh` hook executes arbitrary shell code from the target
 repo. Treat it the same as any other script in a repository you've chosen
 to validate — review it before running against untrusted repos.
 
+## Automated updates
+
+The `auto-update` workflow runs weekly (Monday 10 AM UTC) and can be
+triggered manually via `workflow_dispatch`. It runs `update-versions.sh`,
+which:
+
+1. Checks npm for new CLI versions (`claude-code`, `gemini-cli`, `skills-ref`)
+2. Fetches upstream specs from `pi-mono`, `gemini-cli`, `agentskills`, and `code.claude.com`
+3. Extracts the Gemini extension field allowlist from the upstream TypeScript interface
+4. Runs the test suite if changes are found
+5. Opens or updates a PR on the `auto-update/weekly` branch
+
+Run `./update-versions.sh --dry-run` locally to preview what would change.
+
 ## Troubleshooting
 
 **`npx` fails with network errors**
