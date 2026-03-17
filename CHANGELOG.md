@@ -7,15 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `update-versions.sh` script: checks npm for CLI updates, fetches
+  upstream specs, extracts Gemini field allowlist from TS interface,
+  and applies updates in-place. Idempotent (exit 0=changes, 1=current,
+  2=error). Supports `--dry-run` and `--help`.
+- `.github/workflows/auto-update.yml`: scheduled weekly (Monday 10 AM
+  UTC) workflow that runs tests and opens/updates a PR on the
+  `auto-update/weekly` branch
+- `migratedTo` added to the Gemini extension field allowlist (new
+  upstream field for repository migration)
+- `gemini-migrated-to` test fixture (120 tests total)
+
 ### Changed
 
 - Bumped `@anthropic-ai/claude-code` from 2.1.69 to 2.1.76
 - Bumped `@google/gemini-cli` from 0.32.1 to 0.33.1
 - Re-vendored upstream specs for pi-mono, gemini-cli, agentskills,
   and Claude plugin-marketplaces docs
-- Added `migratedTo` to the Gemini extension field allowlist (new
-  upstream field for repository migration)
-- Added `gemini-migrated-to` test fixture
+- SKILL.md updated: removed resolved `plan` drift note, added
+  `migratedTo` field documentation, updated "Last verified" dates
+- `self-validate.yml` updated to include `auto-update.yml` in yamllint
+  targets
 
 ## [1.5.0] - 2026-03-16
 
