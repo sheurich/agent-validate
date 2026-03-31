@@ -397,7 +397,7 @@ if ! should_skip "pi"; then
             if command -v npx >/dev/null 2>&1; then
                 info "Checking TypeScript syntax in extensions/"
                 for ts in "${ts_files[@]}"; do
-                    tsc_output=$(npx --yes "typescript@${TYPESCRIPT_VERSION}" tsc --noEmit --allowJs --checkJs false "$ts" 2>&1) || {
+                    tsc_output=$(npx --yes -p "typescript@${TYPESCRIPT_VERSION}" tsc --noEmit --allowJs --checkJs false "$ts" 2>&1) || {
                         echo "Error: TypeScript syntax error in $ts" >&2
                         echo "$tsc_output" >&2
                         errors=$((errors + 1))
