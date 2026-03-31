@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-03-31
+
 ### Fixed
 
 - TypeScript syntax checking: use `npx --yes -p "typescript@VERSION" tsc`

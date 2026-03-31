@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-VALIDATE_VERSION="1.6.0"
+VALIDATE_VERSION="1.6.1"
 
 # --- Usage ---
 usage() {
