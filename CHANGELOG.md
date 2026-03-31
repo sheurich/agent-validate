@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - TypeScript syntax checking: use `npx --yes -p "typescript@VERSION" tsc`
-  instead of `npx --yes "typescript@VERSION" tsc`. The typescript package
+  instead of `npx --yes "typescript@VERSION" tsc`. The TypeScript package
   exports two binaries (tsc, tsserver), so npx cannot determine which to
   run without the `-p` flag to separate the package specifier from the
   command.
